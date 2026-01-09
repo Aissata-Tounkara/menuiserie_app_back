@@ -5,19 +5,21 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class StockResource extends JsonResource
+class DevisItemResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
-            'nom' => $this->nom,
+            'type_produit' => $this->type_produit,
+            'description' => $this->description,
             'unite' => $this->unite,
+            'largeur' => $this->largeur,
+            'hauteur' => $this->hauteur,
+            'longueur' => $this->longueur,
             'quantite' => $this->quantite,
-            'seuil_alerte' => $this->seuil_alerte,
             'prix_unitaire' => $this->prix_unitaire,
-            'alerte' => $this->quantite <= $this->seuil_alerte, // ✅ utile pour le dashboard
-            'created_at' => $this->created_at?->format('Y-m-d'),
+            'total' => $this->total,
         ];
     }
 }
