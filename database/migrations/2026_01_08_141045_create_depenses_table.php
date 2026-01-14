@@ -6,23 +6,19 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
-    public function up()
+    public function up(): void
     {
         Schema::create('depenses', function (Blueprint $table) {
             $table->id();
-            $table->string('categorie');
-            $table->string('description')->nullable();
-            $table->decimal('montant', 12, 2);
+            $table->enum('categorie', ['Achat matériaux', 'Transport', 'Électricité', 'Maintenance', 'Autre']);
+            $table->string('description');
+            $table->decimal('montant', 15, 2);
             $table->date('date');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
-    /**
-     * Reverse the migrations.
-     */
+
     public function down(): void
     {
         Schema::dropIfExists('depenses');

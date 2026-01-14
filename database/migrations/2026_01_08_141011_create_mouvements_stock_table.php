@@ -9,10 +9,15 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+    public function up()
     {
         Schema::create('mouvements_stock', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('article_id')->constrained()->onDelete('cascade');
+            $table->enum('type', ['entree', 'sortie']);
+            $table->decimal('quantite', 10, 2);
+            $table->text('motif')->nullable();
+            $table->date('date');
             $table->timestamps();
         });
     }
