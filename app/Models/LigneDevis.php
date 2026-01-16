@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class LigneDevis extends Model
 {
     use HasFactory;
-
+protected $table = 'lignes_devis'; // 👈 AJOUTE CETTE LIGNE
     protected $fillable = [
         'devis_id', 'produit', 'categorie', 'description',
         'largeur', 'hauteur', 'quantite', 'aluminium', 'vitrage',

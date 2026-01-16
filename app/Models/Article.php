@@ -37,7 +37,7 @@ class Article extends Model
 
     public function mouvements(): HasMany
     {
-        return $this->hasMany(MouvementStock::class);
+        return $this->hasMany(Mouvement::class);
     }
 
     public function getValeurTotaleAttribute(): float
@@ -45,15 +45,38 @@ class Article extends Model
         return $this->quantite * $this->prix_achat;
     }
 
-    public function getStatutStockAttribute(): string
-    {
-        $ratio = $this->quantite / $this->seuil_alerte;
-        
-        if ($ratio <= 0.5) return 'Critique';
-        if ($ratio <= 1) return 'Faible';
-        if ($ratio <= 2) return 'Moyen';
+  public function getStatutStockAttribute(): string
+{
+    // Stock vide → prioritaire
+    if ($this->quantite == 0) {
+        return 'Épuisé';
+    }
+
+    // 🔹 RÈGLES ABSOLUES (spécifiques à la menuiserie)
+    // Même si le ratio semble bon, peu de pièces = risque réel
+    if ($this->quantite <= 10) {
+        return 'Critique';
+    }
+    if ($this->quantite <= 15) {
+        return 'Faible';
+    }
+    if ($this->quantite <= 20) {
+        return 'Moyen';
+    }
+
+    // 🔹 RÈGLES RELATIVES (fallback pour les gros stocks)
+    if ($this->seuil_alerte == 0) {
         return 'Bon';
     }
+
+    $ratio = $this->quantite / $this->seuil_alerte;
+
+    if ($ratio <= 0.5) return 'Critique';
+    if ($ratio <= 1) return 'Faible';
+    if ($ratio <= 2) return 'Moyen';
+
+    return 'Bon';
+}
 
     public function isEnAlerte(): bool
     {
@@ -80,7 +103,7 @@ class Article extends Model
         $this->save();
 
         // Créer le mouvement de stock
-        MouvementStock::create([
+        Mouvement::create([
             'article_id' => $this->id,
             'type' => $type,
             'quantite' => $quantite,
@@ -131,7 +154,7 @@ public static function topConsommes($limit = 5)
         // Jointure avec la table mouvements_stock (alias ms)
         // On fait une jointure gauche pour inclure aussi les articles
         // qui n'ont encore aucun mouvement de sortie
-        ->leftJoin('mouvements_stock as ms', function ($join) {
+        ->leftJoin('mouvements as ms', function ($join) {
 
             // Lier l'article au mouvement de stock
             $join->on('articles.id', '=', 'ms.article_id')

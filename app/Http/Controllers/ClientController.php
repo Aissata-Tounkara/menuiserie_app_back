@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
-use App\Http\Requests\ClientRequest;
+use App\Http\Requests\StoreClientRequest;
 use App\Http\Resources\ClientResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Http\Requests\UpdateClientRequest;
 
 class ClientController extends Controller
 {
@@ -41,7 +42,7 @@ class ClientController extends Controller
         return ClientResource::collection($clients);
     }
 
-    public function store(ClientRequest $request): JsonResponse
+    public function store(StoreClientRequest $request): JsonResponse
     {
         $client = Client::create($request->validated());
 
@@ -58,10 +59,12 @@ class ClientController extends Controller
         ]);
     }
 
-    public function update(ClientRequest $request, Client $client): JsonResponse
+   
+
+    public function update(UpdateClientRequest $request, Client $client)
     {
         $client->update($request->validated());
-
+        
         return response()->json([
             'message' => 'Client mis à jour avec succès',
             'data' => new ClientResource($client)
@@ -77,20 +80,25 @@ class ClientController extends Controller
         ]);
     }
 
-    public function stats(): JsonResponse
-    {
-        return response()->json([
-            'total_clients' => Client::count(),
-            'clients_vip' => Client::vip()->count(),
-            'clients_actifs' => Client::actif()->count(),
-            'total_commandes' => Client::sum('nombre_commandes'),
-            'total_achats' => Client::sum('total_achats'),
-        ]);
-    }
+   // Remplace par :
+public function stats(): JsonResponse
+{
+    return response()->json([
+        'total_clients' => Client::count(),
+        'clients_vip' => Client::where('statut', 'VIP')->count(),
+        'clients_actifs' => Client::where('statut', 'Actif')->count(),
+        'total_commandes' => Client::sum('nombre_commandes'),
+        'total_achats' => Client::sum('total_achats'),
+    ]);
+}
 
-    public function updateStatut(Client $client): JsonResponse
+    public function updateStatut(Request $request, Client $client): JsonResponse
     {
-        $client->updateStatut();
+        $request->validate([
+            'statut' => 'required|in:Actif,Inactif,VIP'
+        ]);
+
+        $client->update(['statut' => $request->statut]);
 
         return response()->json([
             'message' => 'Statut mis à jour',

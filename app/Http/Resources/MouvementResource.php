@@ -5,17 +5,22 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class MouvementStockResource extends JsonResource
+class MouvementResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
-            'article' => $this->whenLoaded('article', [
+            'article' => $this->whenLoaded('article', function () {
+        if ($this->article) {
+            return [
                 'id' => $this->article->id,
                 'nom' => $this->article->nom,
                 'reference' => $this->article->reference,
-            ]),
+            ];
+        }
+        return null;
+    }),
             'type' => $this->type,
             'quantite' => (int) $this->quantite,
             'quantite_avant' => (int) $this->quantite_avant,

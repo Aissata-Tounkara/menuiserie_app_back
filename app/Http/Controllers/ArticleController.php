@@ -1,13 +1,14 @@
 <?php
 
 namespace App\Http\Controllers;
-
 use App\Models\Article;
 use App\Http\Requests\ArticleRequest;
 use App\Http\Resources\ArticleResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Http\Requests\UpdateArticleRequest;
+use Illuminate\Support\Facades\DB;
 
 class ArticleController extends Controller
 {
@@ -68,7 +69,9 @@ class ArticleController extends Controller
         ]);
     }
 
-    public function update(ArticleRequest $request, Article $article): JsonResponse
+    
+
+    public function update(UpdateArticleRequest $request, Article $article): JsonResponse
     {
         $article->update($request->validated());
 
@@ -81,6 +84,7 @@ class ArticleController extends Controller
     public function destroy(Article $article): JsonResponse
     {
         $article->delete();
+        
 
         return response()->json([
             'message' => 'Article supprimé avec succès'
@@ -118,18 +122,26 @@ class ArticleController extends Controller
         ]);
     }
 
-    public function stats(): JsonResponse
-    {
-        return response()->json([
-            'total_articles' => Article::count(),
-            'valeur_stock' => Article::getValeurTotaleStock(),
-            'alertes' => Article::enAlerte()->count(),
-            'critiques' => Article::critique()->count(),
-            'by_categorie' => Article::selectRaw('categorie, COUNT(*) as count')
-                ->groupBy('categorie')
-                ->get(),
-        ]);
-    }
+    
+
+public function stats(): JsonResponse
+{
+    return response()->json([
+        'total_articles' => Article::count(),
+        'valeur_stock' => Article::getValeurTotaleStock(),
+        'alertes' => Article::enAlerte()->count(),
+        'critiques' => Article::critique()->count(),
+        'by_categorie' => DB::table('articles')
+            ->selectRaw("
+                categorie,
+                COUNT(*) as count,
+                COALESCE(SUM(quantite * prix_achat), 0) as valeur_totale
+            ")
+            ->whereNull('deleted_at') // exclure les soft deletes
+            ->groupBy('categorie')
+            ->get(),
+    ]);
+}
 
     public function alertes(): AnonymousResourceCollection
     {

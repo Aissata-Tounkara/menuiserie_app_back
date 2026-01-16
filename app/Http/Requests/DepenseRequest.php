@@ -14,7 +14,7 @@ class DepenseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'categorie' => ['required', 'in:Achat matériaux,Transport,Électricité,Maintenance,Autre'],
+           'categorie' => ['sometimes', 'in:Achat matériaux,Transport,Électricité,Maintenance,Autre'],
             'description' => ['required', 'string', 'max:500'],
             'montant' => ['required', 'numeric', 'min:0'],
             'date' => ['required', 'date', 'before_or_equal:today'],

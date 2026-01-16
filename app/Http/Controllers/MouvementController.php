@@ -2,20 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\MouvementStock;
+use App\Models\Mouvement;
 use App\Models\Article;
-use App\Http\Requests\MouvementStockRequest;
-use App\Http\Resources\MouvementStockResource;
+use App\Http\Requests\MouvementRequest;
+use App\Http\Resources\MouvementResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
-class MouvementStockController extends Controller
+class MouvementController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
-        $query = MouvementStock::with(['article', 'user']);
-
+        $query = Mouvement::with(['article', 'user']);
         // Filtre par article
         if ($request->has('article_id')) {
             $query->byArticle($request->article_id);
@@ -43,10 +42,10 @@ class MouvementStockController extends Controller
         $perPage = $request->input('per_page', 20);
         $mouvements = $query->paginate($perPage);
 
-        return MouvementStockResource::collection($mouvements);
+        return MouvementResource::collection($mouvements);
     }
 
-    public function store(MouvementStockRequest $request): JsonResponse
+    public function store(MouvementRequest $request): JsonResponse
     {
         $article = Article::findOrFail($request->article_id);
         
@@ -66,55 +65,82 @@ class MouvementStockController extends Controller
             $request->commentaire
         );
 
-        $mouvement = MouvementStock::where('article_id', $article->id)
+        $mouvement = Mouvement::where('article_id', $article->id)
             ->latest('date_mouvement')
             ->first();
 
         return response()->json([
             'message' => 'Mouvement de stock enregistré avec succès',
-            'data' => new MouvementStockResource($mouvement->load(['article', 'user']))
+            'data' => new MouvementResource($mouvement->load(['article', 'user']))
         ], 201);
     }
 
-    public function show(MouvementStock $mouvement): JsonResponse
-    {
+   public function show(Mouvement $mouvement): JsonResponse
+{
+    // Charger la relation article
+    $mouvement->load('article');
+
+    return response()->json([
+        'data' => new MouvementResource($mouvement)
+    ]);
+}
+
+ public function destroy(Mouvement $mouvement): JsonResponse
+{
+    // Récupérer l'article associé, même s'il a été soft-supprimé (pour historique)
+    $article = Article::withTrashed()->where('id', $mouvement->article_id)->first();
+
+    if (!$article) {
         return response()->json([
-            'data' => new MouvementStockResource($mouvement->load(['article', 'user']))
-        ]);
+            'message' => 'Article associé introuvable'
+        ], 404);
     }
 
-    public function destroy(MouvementStock $mouvement): JsonResponse
-    {
-        // Annuler le mouvement en faisant l'opération inverse
-        $article = $mouvement->article;
-        
-        if ($mouvement->type === 'entree') {
-            $article->quantite -= $mouvement->quantite;
-        } else {
-            $article->quantite += $mouvement->quantite;
-        }
-        
-        $article->save();
-        $mouvement->delete();
-
+    // Réajuster le stock selon le type de mouvement
+    if ($mouvement->type === 'entree') {
+        // Annuler une entrée → on retire la quantité
+        $article->quantite -= $mouvement->quantite;
+    } elseif ($mouvement->type === 'sortie') {
+        // Annuler une sortie → on remet la quantité en stock
+        $article->quantite += $mouvement->quantite;
+    } else {
         return response()->json([
-            'message' => 'Mouvement annulé avec succès'
-        ]);
+            'message' => 'Type de mouvement invalide'
+        ], 422);
     }
 
-    public function historique(Article $article): AnonymousResourceCollection
-    {
-        $mouvements = $article->mouvements()
-            ->with('user')
-            ->orderBy('date_mouvement', 'desc')
-            ->paginate(20);
-
-        return MouvementStockResource::collection($mouvements);
+    // Mettre à jour les dates de dernière entrée/sortie si nécessaire
+    if ($mouvement->type === 'entree' && $article->derniere_entree?->isSameDay($mouvement->date_mouvement)) {
+        // Optionnel : recalculer la dernière entrée si besoin
+        $lastEntree = $article->mouvements()
+            ->entrees()
+            ->where('id', '!=', $mouvement->id)
+            ->max('date_mouvement');
+        $article->derniere_entree = $lastEntree;
     }
+
+    if ($mouvement->type === 'sortie' && $article->derniere_sortie?->isSameDay($mouvement->date_mouvement)) {
+        $lastSortie = $article->mouvements()
+            ->sorties()
+            ->where('id', '!=', $mouvement->id)
+            ->max('date_mouvement');
+        $article->derniere_sortie = $lastSortie;
+    }
+
+    // Sauvegarder l'article
+    $article->save();
+
+    // Supprimer le mouvement
+    $mouvement->delete();
+
+    return response()->json([
+        'message' => 'Mouvement annulé avec succès'
+    ]);
+}
 
     public function stats(Request $request): JsonResponse
     {
-        $query = MouvementStock::query();
+        $query = Mouvement::query();
 
         if ($request->has('date_debut') && $request->has('date_fin')) {
             $query->byPeriod($request->date_debut, $request->date_fin);

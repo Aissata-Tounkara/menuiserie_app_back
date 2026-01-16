@@ -2,14 +2,14 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\Api\DevisController;
-use App\Http\Controllers\Api\CommandeController;
-use App\Http\Controllers\Api\FactureController; 
+use App\Http\Controllers\DevisController;
+use App\Http\Controllers\CommandeController;
+use App\Http\Controllers\FactureController; 
 use App\Http\Controllers\ClientController;
 
 use App\Http\Controllers\DepenseController;
 use App\Http\Controllers\ArticleController;
-use App\Http\Controllers\MouvementStockController;
+use App\Http\Controllers\MouvementController;
 use App\Http\Controllers\DashboardController;
 
 Route::prefix('auth')->group(function () {
@@ -63,22 +63,28 @@ Route::prefix('clients')->group(function () {
     Route::patch('/{client}/statut', [ClientController::class, 'updateStatut']);
 });
 
-// Gestion des dépenses
-Route::apiResource('depenses', DepenseController::class);
 Route::get('depenses/stats', [DepenseController::class, 'stats']);
 // Route d'export CSV optionnelle (mais tu l’as côté frontend → inutile ici)
+// Gestion des dépenses
+Route::apiResource('depenses', DepenseController::class);
+
 
 // Articles
-Route::apiResource('articles', ArticleController::class);
-Route::post('articles/{article}/ajuster-stock', [ArticleController::class, 'ajusterStock']);
+// Routes spécifiques AVANT apiResource
 Route::get('articles/stats', [ArticleController::class, 'stats']);
 Route::get('articles/alertes', [ArticleController::class, 'alertes']);
+Route::post('articles/{article}/ajuster-stock', [ArticleController::class, 'ajusterStock']);
+// Route générique en dernier
+Route::apiResource('articles', ArticleController::class);
 
 // Mouvements de stock
-Route::apiResource('mouvements-stock', MouvementStockController::class)->except(['store']);
-Route::post('mouvements-stock', [MouvementStockController::class, 'store']); // car besoin de logique custom
-Route::get('mouvements-stock/stats', [MouvementStockController::class, 'stats']);
-Route::get('articles/{article}/historique-mouvements', [MouvementStockController::class, 'historique']);
+// Routes spécifiques AVANT apiResource
+Route::get('mouvement/stats', [MouvementController::class, 'stats']);
+Route::get('articles/{article}/historique-mouvement', [MouvementController::class, 'historique']);
+
+// Route générique en dernier
+Route::apiResource('mouvement', MouvementController::class)->except(['store']);
+Route::post('mouvement', [MouvementController::class, 'store']);
 
  // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index']);

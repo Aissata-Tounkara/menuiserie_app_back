@@ -6,11 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class MouvementStock extends Model
+class Mouvement extends Model
 {
     use HasFactory;
 
-    protected $table = 'mouvements_stock';
 
     protected $fillable = [
         'article_id',
@@ -32,11 +31,11 @@ class MouvementStock extends Model
         'quantite_apres' => 'integer',
     ];
 
-    public function article(): BelongsTo
+    public function article()
     {
         return $this->belongsTo(Article::class);
     }
-
+    
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
