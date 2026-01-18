@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use App\Http\Requests\UpdateClientRequest;
-
+use Carbon\Carbon;
 class ClientController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
@@ -89,6 +89,13 @@ public function stats(): JsonResponse
         'clients_actifs' => Client::where('statut', 'Actif')->count(),
         'total_commandes' => Client::sum('nombre_commandes'),
         'total_achats' => Client::sum('total_achats'),
+
+          // ✅ AJOUT ICI
+        'newClientsMonth' => Client::where(
+            'created_at',
+            '>=',
+            Carbon::now()->subDays(30)
+        )->count(),
     ]);
 }
 

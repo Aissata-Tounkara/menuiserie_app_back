@@ -1,0 +1,1665 @@
+================================================================================
+             GUIDE COMPLET - GESTION MENUISERIE SARL
+                        Version 1.0 - 18 Janvier 2026
+================================================================================
+
+Ce guide combine l'architecture complète du projet :
+- Base de Données (Tables, Relations, Flux Métier)
+- API REST (Routes, Contrôleurs, Requêtes)
+- Exemples Pratiques et Flux de Travail
+
+Objectif : Comprendre le projet de A à Z pour développement et maintenance
+
+================================================================================
+SOMMAIRE
+================================================================================
+
+1. Vue d'Ensemble du Projet
+2. Architecture Générale
+3. Base de Données Expliquée
+4. API REST et Endpoints
+5. Flux de Travail Métier Complets
+6. Bonnes Pratiques et Sécurité
+7. Guide de Déploiement et Maintenance
+
+================================================================================
+1. VUE D'ENSEMBLE DU PROJET
+================================================================================
+
+QU'EST-CE QUE C'EST ?
+--------------------
+Ce projet est un système complet de gestion pour une menuiserie (fabrication
+de fenêtres, portes, etc.). Il permet de :
+
+  ✓ Gérer les clients (particuliers et professionnels)
+  ✓ Créer des devis avec calcul automatique des prix
+  ✓ Convertir les devis en commandes fermes
+  ✓ Émettre des factures et suivre les paiements
+  ✓ Gérer le stock de matériaux
+  ✓ Suivre les mouvements de stock (entrées/sorties)
+  ✓ Enregistrer les dépenses professionnelles
+  ✓ Voir un tableau de bord avec statistiques en temps réel
+  ✓ Gérer les accès utilisateurs (Rôles et Permissions)
+
+TECHNOLOGIE
+-----------
+Backend  : Laravel 11 (Framework PHP moderne)
+API      : REST avec authentification Sanctum (tokens JWT)
+BDD      : MySQL/MariaDB 8.0+
+Frontend : À développer (actuellement absent, API-first)
+Langue   : PHP, SQL
+Charset  : UTF-8 Unicode (support complet des accents)
+
+UTILISATION PRINCIPALE
+----------------------
+Ce système est destiné à :
+  - Responsable Commercial : Créer devis, gérer commandes
+  - Responsable Production : Suivre les commandes en cours
+  - Responsable Finances : Gérer factures et paiements
+  - Responsable Stock : Maintenir l'inventaire
+  - Administrateur : Gérer utilisateurs et accès
+
+================================================================================
+2. ARCHITECTURE GÉNÉRALE
+================================================================================
+
+COMMENT ÇA MARCHE ?
+-------------------
+
+L'application suit le pattern MVC (Modèle-Vue-Contrôleur) :
+
+1. CLIENT (Application web/mobile ou navigateur)
+         ↓
+         [Envoie une requête HTTP]
+         ↓
+2. ROUTE (Laravel lit l'URL)
+         ↓
+         [Exemple: POST /api/devis]
+         ↓
+3. CONTRÔLEUR (Logique métier)
+         ↓
+         [Exemple: DevisController@store]
+         ↓
+4. MODÈLE (Accès à la base de données)
+         ↓
+         [Exemple: Devis::create()]
+         ↓
+5. VALIDATION (Requête validée)
+         ↓
+         [Exemple: StoreDevisRequest]
+         ↓
+6. RÉPONSE JSON
+         ↓
+         [Envoyé au client]
+
+COUCHES FONCTIONNELLES
+----------------------
+
+┌─────────────────────────────────────────────────────┐
+│         GESTION CLIENTS                             │
+│  • Créer, modifier, supprimer clients               │
+│  • Filtrer par statut (Actif, Inactif, VIP)         │
+│  • Voir historique des achats                       │
+└────────────────┬────────────────────────────────────┘
+                 │
+      ┌──────────┴──────────┐
+      │                     │
+      ▼                     ▼
+┌──────────────┐    ┌──────────────────────┐
+│ DEVIS        │    │ COMMANDES            │
+│              │    │                      │
+│ • Brouillon  │    │ • En attente         │
+│ • Envoyé     │    │ • En production      │
+│ • Accepté    │    │ • Prête              │
+│ • Refusé     │    │ • Livrée             │
+│ • Expiré     │    │ • Annulée            │
+│              │    │                      │
+│ Lignes :     │    │ Articles :           │
+│ • Produit    │    │ • Produit            │
+│ • Dimensions │    │ • Quantité           │
+│ • Prix       │    │ • Dimensions         │
+│ • Matériaux  │    │ • Prix               │
+└──────────────┘    └──────────────────────┘
+      │                     │
+      └──────────┬──────────┘
+                 │
+                 ▼
+        ┌─────────────────┐
+        │ FACTURES        │
+        │                 │
+        │ • Non payée     │
+        │ • Payée         │
+        │ • En attente    │
+        │ • En retard     │
+        │                 │
+        │ Articles :      │
+        │ • Désignation   │
+        │ • Quantité      │
+        │ • Prix unitaire │
+        │ • Total         │
+        └─────────────────┘
+
+┌──────────────────────────────────────────┐
+│    GESTION DES STOCKS                    │
+│                                          │
+│  ARTICLES (Catalogue)                    │
+│  ├─ Nom, Référence unique                │
+│  ├─ Catégorie                            │
+│  ├─ Quantité actuelle                    │
+│  ├─ Seuil d'alerte                       │
+│  ├─ Prix d'achat                         │
+│  └─ Emplacement en magasin               │
+│                                          │
+│         │                                │
+│         ▼                                │
+│  MOUVEMENTS (Historique)                 │
+│  ├─ Entrée / Sortie                      │
+│  ├─ Quantité mouvementée                 │
+│  ├─ Avant/Après                          │
+│  ├─ Motif (Réappro, Commande, etc.)      │
+│  └─ Date du mouvement                    │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│    GESTION FINANCIÈRE                    │
+│                                          │
+│  DÉPENSES                                │
+│  ├─ Achat matériaux                      │
+│  ├─ Transport                            │
+│  ├─ Électricité                          │
+│  ├─ Maintenance                          │
+│  └─ Autres dépenses                      │
+│                                          │
+│  → Permet le calcul de rentabilité       │
+└──────────────────────────────────────────┘
+
+┌──────────────────────────────────────────┐
+│    SÉCURITÉ ET AUTHENTIFICATION          │
+│                                          │
+│  USERS (Comptes utilisateurs)            │
+│  └─ Authentification par email/password  │
+│                                          │
+│  ROLES (Administrateur, etc.)            │
+│  └─ Groupes de permissions               │
+│                                          │
+│  PERMISSIONS                             │
+│  └─ Actions autorisées                   │
+│     (créer devis, voir factures, etc.)   │
+└──────────────────────────────────────────┘
+
+================================================================================
+3. BASE DE DONNÉES EXPLIQUÉE
+================================================================================
+
+CONCEPT FONDAMENTAL
+-------------------
+
+La base de données est composée de TABLES. Chaque table stocke un TYPE
+d'information. Elles sont reliées entre elles par des RELATIONS (Foreign Keys).
+
+EXEMPLE SIMPLE :
+  Table CLIENTS : Stocke les informations des clients
+  Table COMMANDES : Stocke les commandes
+  Relation : Chaque commande appartient à 1 client (commande_id → client_id)
+
+LES 15 TABLES PRINCIPALES
+--------------------------
+
+1. USERS (Comptes Utilisateurs)
+   ─────────────────────────────
+   Stocke : Nom, email, mot de passe
+   Utilité : Authentification
+   Exemple :
+     ID | Nom   | Email                | Mot de passe (hashé)
+     1  | Admin | admin@menuiserie.fr  | $2y$10$...
+     2  | Jean  | jean@menuiserie.fr   | $2y$10$...
+
+2. CLIENTS (Informations Clients)
+   ──────────────────────────────
+   Stocke : Nom, prénom, téléphone, email, adresse, etc.
+   Filtrages : Statut (Actif/Inactif/VIP), Type (Particulier/Professionnel)
+   Tracking : Nombre de commandes, Total des achats, Dernière commande
+   
+   Exemple :
+     ID | Nom    | Prénom | Type        | Statut  | Total achats
+     1  | Dupont | Jean   | Particulier  | VIP     | 5000.00
+     2  | Durand | Marie  | Professionnel| Actif   | 12000.00
+
+   Statuts expliqués :
+     - Actif : Client avec qui nous travaillons régulièrement
+     - Inactif : Client plus actif (ex: a demandé arrêt)
+     - VIP : Client important (gros achats, régulier)
+
+3. ARTICLES (Catalogue de Matériaux)
+   ──────────────────────────────────
+   Stocke : Fenêtres, portes, cadres, etc.
+   Infos : Nom, référence unique, catégorie, quantité en stock
+   Alerte : Seuil minimum (ex: alerter si < 10 pièces)
+   Localisation : Où c'est rangé en magasin
+   
+   Exemple :
+     ID | Nom            | Reference      | Quantité | Seuil | Prix achat
+     1  | Fenêtre PVC    | FENPVC100x120  | 15       | 5     | 350.00
+     2  | Porte Alu      | PORTALU80x210  | 3        | 2     | 450.00
+
+   Pourquoi un seuil d'alerte ? 
+     → Pour savoir quand réapprovisionner
+     → Si quantité <= seuil → afficher alerte au gestionnaire
+
+4. MOUVEMENTS ET MOUVEMENTS_STOCK (Historique)
+   ────────────────────────────────────────────
+   Stocke : Chaque entrée/sortie de stock
+   Tracking : Quantité avant/après, motif, date
+   
+   Exemple :
+     Date      | Article    | Type   | Quantité | Avant | Après | Motif
+     18/01/26  | Fenêtre    | Entrée | 10       | 5     | 15    | Réappro fournisseur
+     20/01/26  | Fenêtre    | Sortie | 2        | 15    | 13    | Commande #COM001
+
+   Utilité : Audit complet
+     → Qui a enlevé combien de stock ?
+     → Quand ?
+     → Pourquoi ?
+
+   ⚠️ PROBLÈME IDENTIFIÉ : Deux tables identiques !
+      Solution : Les fusionner en une seule table
+
+5. DEVIS (Propositions Commerciales)
+   ──────────────────────────────────
+   Stocke : Propositions de prix aux clients
+   Cycle de vie :
+     brouillon → envoye → accepte → (crée commande)
+                              ↘ refuse
+                              ↘ expire
+   
+   Infos : Client, dates, remise, acompte, totaux
+   
+   Exemple :
+     ID | Client  | Date  | Validité | Statut  | Total HT | Total TTC
+     1  | Dupont  | 18/01 | 30 jours | accepte | 1400     | 1680
+     2  | Durand  | 17/01 | 30 jours | envoye  | 2500     | 3000
+
+   Remise et Acompte expliqués :
+     Remise 10% : Le client paie 10% moins cher
+     Acompte 30% : Le client verse 30% à la commande, reste après livraison
+
+6. LIGNES_DEVIS (Détails des Devis)
+   ────────────────────────────────
+   Stocke : Chaque produit dans un devis
+   Infos : Produit, quantité, dimensions (largeur/hauteur), prix
+   
+   Relation : N lignes pour 1 devis
+   
+   Exemple :
+     Devis 1 :
+       - Fenêtre PVC 100x120 × 2 unités = 700€
+       - Porte Alu 80x210 × 1 unité = 500€
+       - Total = 1200€
+
+7. COMMANDES (Commandes Fermes)
+   ────────────────────────────
+   Stocke : Commandes confirmées
+   Lien : Généralement créée à partir d'un devis accepté
+   Statuts :
+     En attente → En production → Prête → Livrée
+                                         ↘ Annulée
+   
+   Montants : HT (Hors Taxe) et TTC (Toutes Taxes Comprises)
+   
+   Exemple :
+     ID  | Numéro     | Client  | Statut          | Montant TTC
+     1   | COM202601  | Dupont  | En production   | 1680.00
+     2   | COM202602  | Durand  | Prête           | 3000.00
+
+8. ARTICLES_COMMANDE (Détails des Commandes)
+   ──────────────────────────────────────────
+   Stocke : Les articles commandés
+   Infos : Produit, quantité, dimensions, prix
+   
+   Relation : N articles pour 1 commande
+   
+   Exemple :
+     Commande COM202601 :
+       - Fenêtre PVC 100x120 × 2 = 700€
+       - Porte Alu 80x210 × 1 = 500€
+
+9. FACTURES (Documents Officiels)
+   ──────────────────────────────
+   Stocke : Factures émises aux clients
+   Lien : Créée à partir d'une commande
+   Paiement : Suivi complet (montant payé, mode, date)
+   Statuts :
+     Non payée → Payée
+             ↘ En attente (paiement partiel)
+             ↘ En retard
+   
+   Exemple :
+     ID | Numéro | Client  | Montant TTC | Payé    | Statut
+     1  | FAC001 | Dupont  | 1680.00     | 1680.00 | Payée
+     2  | FAC002 | Durand  | 3000.00     | 0.00    | Non payée
+
+10. ARTICLES_FACTURE (Détails des Factures)
+    ────────────────────────────────────────
+    Stocke : Articles facturés
+    Infos : Désignation, quantité, prix unitaire, total
+    
+    Relation : N articles pour 1 facture
+
+11. DEPENSES (Gestion Financière)
+    ────────────────────────────
+    Stocke : Dépenses professionnelles
+    Catégories :
+      - Achat matériaux
+      - Transport
+      - Électricité
+      - Maintenance
+      - Autre
+    
+    Utilité : Calcul de rentabilité
+      Marge brute = Revenus - Dépenses
+    
+    Exemple :
+      Catégorie           | Description          | Montant | Date
+      Achat matériaux     | Stock PVC            | 2500.00 | 18/01
+      Transport           | Livraison fournisseur| 150.00  | 18/01
+      Électricité         | Facture EDF janvier  | 800.00  | 15/01
+
+12. ROLES (Groupes d'Accès)
+    ───────────────────────
+    Stocke : Types de rôles utilisateurs
+    Exemples :
+      - admin : Accès total au système
+      - responsable_commercial : Gestion devis/commandes
+      - responsable_production : Suivi fabrication
+      - responsable_finances : Gestion factures
+      - responsable_stock : Gestion inventaire
+
+13. PERMISSIONS (Droits d'Accès)
+    ────────────────────────────
+    Stocke : Permissions granulaires
+    Exemples :
+      - create_devis (créer un devis)
+      - edit_devis (modifier un devis)
+      - delete_devis (supprimer un devis)
+      - view_factures (voir les factures)
+      - edit_factures (modifier les factures)
+      - manage_users (gérer les utilisateurs)
+
+14. ROLE_HAS_PERMISSIONS (Liaison Rôle-Permission)
+    ────────────────────────────────────────────────
+    Stocke : Quelles permissions pour chaque rôle ?
+    Exemple :
+      Rôle: admin
+        ├─ create_devis
+        ├─ edit_devis
+        ├─ delete_devis
+        ├─ create_commande
+        └─ ... (toutes les permissions)
+
+15. MODEL_HAS_PERMISSIONS (Permissions Utilisateur)
+    ───────────────────────────────────────────────
+    Stocke : Permissions directes pour un utilisateur
+    Utilité : Exceptions (ex: un utilisateur a une permission supplémentaire)
+
+AUTRES TABLES (Infrastructure)
+──────────────────────────────
+
+PERSONAL_ACCESS_TOKENS
+  → Gère les tokens d'authentification API
+  → Chaque token a une durée d'expiration
+  → Permet "se souvenir de moi"
+
+SESSIONS
+  → Stocke les sessions web
+  → IP address, navigateur, données
+  → Gestion des sessions persistantes
+
+PASSWORD_RESET_TOKENS & PASSWORD_RESET_CODES
+  → Pour la récupération de mot de passe
+  → Codes à usage unique avec expiration
+
+MIGRATIONS
+  → Suivi des modifications du schéma BD
+  → Historique des "mises à jour" de structure
+
+LES RELATIONS EXPLIQUÉES SIMPLEMENT
+-----------------------------------
+
+Une RELATION lie deux tables ensemble.
+
+EXEMPLE 1 : Un client a plusieurs commandes
+  └─ Relation 1:N (Un à Plusieurs)
+     CLIENTS (ID=1) → COMMANDES (client_id=1, client_id=1, client_id=1)
+     1 client peut avoir 5 commandes
+
+EXEMPLE 2 : Une commande appartient à 1 client
+  └─ Relation N:1 (Plusieurs à Un)
+     COMMANDES → CLIENTS
+     Chaque commande pointe vers 1 client (via client_id)
+
+EXEMPLE 3 : Une facture est liée à 1 commande ET 1 client
+  └─ Relations multiples
+     FACTURES → COMMANDES (via commande_id)
+     FACTURES → CLIENTS (via client_id)
+
+CASCADE vs SET NULL
+-------------------
+
+Quand on SUPPRIME quelque chose, qu'il advient des données liées ?
+
+CASCADE : Supprime automatiquement les données liées
+  Exemple : Supprimer un client → supprime aussi ses commandes
+  
+SET NULL : Met en NULL (vide) la référence
+  Exemple : Supprimer un devis → la commande reste, mais devis_id = NULL
+
+SOFT DELETE
+-----------
+
+Les données ne sont jamais physiquement supprimées, mais marquées comme
+supprimées (deleted_at = date).
+
+Avantage : On peut récupérer les données, bon pour l'audit.
+
+================================================================================
+4. API REST ET ENDPOINTS
+================================================================================
+
+QU'EST-CE QU'UNE API REST ?
+---------------------------
+
+REST = Representational State Transfer
+
+C'est une façon de structurer les requêtes HTTP :
+  - Chaque URL = UNE ressource
+  - Chaque méthode HTTP = UNE action
+
+MÉTHODES HTTP
+─────────────
+
+GET    → Récupérer une ressource
+POST   → Créer une ressource
+PUT    → Remplacer une ressource complètement
+PATCH  → Modifier partiellement une ressource
+DELETE → Supprimer une ressource
+
+EXEMPLE CONCRET : Gestion des Clients
+──────────────────────────────────────
+
+GET /api/clients                    → Liste tous les clients
+GET /api/clients/1                  → Affiche le client 1
+POST /api/clients                   → Crée un nouveau client
+PUT /api/clients/1                  → Remplace le client 1 complètement
+PATCH /api/clients/1/statut         → Change juste le statut
+DELETE /api/clients/1               → Supprime le client 1
+
+AUTHENTICATION AVEC SANCTUM
+----------------------------
+
+Pourquoi authentifier ?
+  → Seuls les utilisateurs autorisés peuvent accéder aux données
+  → Chaque utilisateur ne voit que ses données
+  → Traçabilité des actions
+
+Comment ça marche ?
+  1. L'utilisateur envoie email + password → POST /api/auth/login
+  2. Le serveur vérifie et génère un TOKEN (clé d'accès unique)
+  3. Le client stocke ce token et l'envoie à chaque requête
+  4. Le serveur lit le token et valide la requête
+
+Exemple avec token :
+  
+  curl -X GET http://localhost/api/clients \
+    -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc..."
+
+Sans token → Erreur 401 Unauthorized
+
+ENDPOINTS COMPLETS PAR RESSOURCE
+---------------------------------
+
+AUTHENTIFICATION (/api/auth)
+────────────────────────────
+
+POST /api/auth/login
+  Description : Authentifier un utilisateur
+  Requête :
+    {
+      "email": "admin@example.com",
+      "password": "password123"
+    }
+  Réponse :
+    {
+      "message": "Authentifié avec succès",
+      "token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+      "user": {
+        "id": 1,
+        "name": "Admin",
+        "email": "admin@example.com"
+      }
+    }
+
+POST /api/auth/forgot-password
+  Description : Demander un code de récupération
+  Requête : { "email": "admin@example.com" }
+  Réponse : Un code à usage unique est envoyé par email
+
+POST /api/auth/reset-password
+  Description : Réinitialiser le password avec le code
+  Requête : 
+    {
+      "email": "admin@example.com",
+      "code": "123456",
+      "password": "newpassword"
+    }
+
+POST /api/auth/logout (protégé par token)
+  Description : Déconnecter l'utilisateur
+  Effet : Le token devient invalide
+
+GET /api/auth/me (protégé par token)
+  Description : Récupérer les infos de l'utilisateur connecté
+  Réponse : Profil complet de l'utilisateur
+
+CLIENTS (/api/clients)
+──────────────────────
+
+GET /api/clients?search=Dupont&statut=Actif&per_page=20
+  Description : Liste les clients avec filtres
+  Paramètres optionnels :
+    search      : Cherche dans nom/prénom/téléphone
+    statut      : Filtre par Actif/Inactif/VIP
+    type_client : Filtre par Particulier/Professionnel
+    sort_by     : Colonne pour tri (ex: created_at)
+    sort_order  : asc ou desc (défaut: desc)
+    per_page    : Nombre de résultats par page (défaut: 15)
+
+POST /api/clients
+  Description : Créer un nouveau client
+  Requête :
+    {
+      "nom": "Dupont",
+      "prenom": "Jean",
+      "telephone": "0612345678",
+      "email": "jean@dupont.fr",
+      "adresse": "123 rue de la Paix",
+      "ville": "Paris",
+      "code_postal": "75000",
+      "type_client": "Particulier",
+      "date_inscription": "2026-01-18",
+      "statut": "Actif"
+    }
+
+GET /api/clients/1
+  Description : Afficher un client spécifique
+  Réponse : Objet client complet
+
+PUT /api/clients/1
+  Description : Modifier complètement un client
+  Requête : Tous les champs à envoyer
+
+PATCH /api/clients/1/statut
+  Description : Changer juste le statut
+  Requête : { "statut": "VIP" }
+
+DELETE /api/clients/1
+  Description : Supprimer un client (soft delete)
+
+GET /api/clients/stats
+  Description : Statistiques générales
+  Réponse :
+    {
+      "total_clients": 45,
+      "clients_vip": 5,
+      "clients_actifs": 40,
+      "total_commandes": 123,
+      "total_achats": 125000.00,
+      "newClientsMonth": 3
+    }
+
+DEVIS (/api/devis)
+──────────────────
+
+GET /api/devis?statut=brouillon&per_page=15
+  Description : Liste les devis avec filtres
+  Filtres : statut, search, sort_by, sort_order, per_page
+
+POST /api/devis
+  Description : Créer un nouveau devis en brouillon
+  Requête :
+    {
+      "client_id": 1,
+      "date_emission": "2026-01-18",
+      "validite": 30,
+      "date_validite": "2026-02-17",
+      "remise": 10,           (pourcentage)
+      "acompte": 30,          (pourcentage)
+      "delai_livraison": "14 jours",
+      "conditions_paiement": "30 jours",
+      "notes": "Devis standard",
+      "lignes": [
+        {
+          "produit": "Fenêtre PVC 100x120",
+          "categorie": "Fenêtres",
+          "description": "Double vitrage",
+          "largeur": 1.0,
+          "hauteur": 1.2,
+          "quantite": 2,
+          "aluminium": "Profil standard",
+          "vitrage": "4-16-4",
+          "prix_unitaire": 350.00
+        }
+      ]
+    }
+  
+  Processus :
+    1. Crée le devis avec statut "brouillon"
+    2. Crée les lignes associées
+    3. Calcule les totaux (HT, TTC, remises)
+    4. Retourne le devis créé
+
+PUT /api/devis/1
+  Description : Modifier un devis (uniquement en brouillon)
+  Requête : Mêmes champs que POST
+  Erreur : 400 si devis n'est pas en brouillon
+
+DELETE /api/devis/1
+  Description : Supprimer un devis (uniquement en brouillon)
+
+POST /api/devis/1/valider
+  Description : VALIDER LE DEVIS - Crée commande + facture
+  
+  Processus :
+    1. Passe le devis de "brouillon" à "accepte"
+    2. CRÉE UNE COMMANDE :
+       - Copie les lignes devis → articles_commande
+       - Statut initial : "En attente"
+    3. CRÉE UNE FACTURE :
+       - Copie articles_commande → articles_facture
+       - Statut initial : "Non payée"
+       - Date d'échéance : date_emission + 30 jours
+  
+  Réponse :
+    {
+      "message": "Devis validé. Commande et facture créées.",
+      "devis": {...},
+      "commande_id": 5,
+      "facture_id": 10
+    }
+
+COMMANDES (/api/commandes)
+──────────────────────────
+
+GET /api/commandes?statut=En+production&per_page=20
+  Description : Liste les commandes
+  Filtres : statut, client_id, sort_by, sort_order, per_page
+
+POST /api/commandes
+  Description : Créer une commande (directe ou depuis devis)
+  Requête :
+    {
+      "client_id": 1,
+      "devis_id": 5,          (optionnel)
+      "date_commande": "2026-01-18",
+      "date_livraison": "2026-02-01",
+      "montant_ht": 1400,
+      "montant_ttc": 1680,
+      "notes": "Commande avec acompte versé"
+    }
+
+GET /api/commandes/1
+  Description : Afficher une commande avec ses articles
+
+POST /api/commandes/1/statut
+  Description : Changer le statut
+  Requête : { "statut": "En production" }
+  
+  Statuts possibles :
+    En attente → En production → Prête → Livrée
+                                      ↘ Annulée
+
+GET /api/commandes/stats
+  Description : Statistiques des commandes
+  Réponse :
+    {
+      "total": 45,
+      "en_attente": 5,
+      "en_production": 15,
+      "prete": 10,
+      "livrees": 12,
+      "annulees": 3
+    }
+
+FACTURES (/api/factures)
+────────────────────────
+
+GET /api/factures?statut=Non+payée&per_page=15
+  Description : Liste des factures
+
+POST /api/factures
+  Description : Créer une facture (généralement auto depuis commande)
+  Requête :
+    {
+      "commande_id": 1,
+      "client_id": 1,
+      "date_emission": "2026-01-18",
+      "date_echeance": "2026-02-17",
+      "montant_ht": 1400,
+      "tva": 280,
+      "montant_ttc": 1680,
+      "montant_paye": 0,
+      "statut": "Non payée",
+      "notes": "Facture standard"
+    }
+
+GET /api/factures/1
+  Description : Afficher une facture avec ses articles
+
+POST /api/factures/1/payer
+  Description : Enregistrer un paiement
+  Requête :
+    {
+      "montant_paye": 500,        (supplémentaire à ce qui est déjà payé)
+      "mode_paiement": "Virement",
+      "date_paiement": "2026-01-20"
+    }
+  
+  Logique :
+    - Ajoute le montant à montant_paye existant
+    - Si montant_paye >= montant_ttc → Statut "Payée"
+    - Sinon → Statut "En attente"
+
+GET /api/factures/1/telecharger-pdf
+  Description : Générer et télécharger facture en PDF
+
+GET /api/factures/stats
+  Description : Statistiques des factures
+  Réponse : Total payé, non payé, en retard, etc.
+
+ARTICLES (Stock) (/api/articles)
+────────────────────────────────
+
+GET /api/articles?categorie=Fenêtres&per_page=50
+  Description : Liste les articles du stock
+  Filtres : categorie, recherche, sort_by, per_page
+
+POST /api/articles
+  Description : Ajouter un nouvel article au catalogue
+  Requête :
+    {
+      "nom": "Fenêtre PVC 100x120",
+      "reference": "FENETRE-PVC-100x120",  (UNIQUE)
+      "categorie": "Fenêtres",
+      "quantite": 10,
+      "unite": "pcs",
+      "seuil_alerte": 2,
+      "prix_achat": 350,
+      "fournisseur": "ABC Menuiserie",
+      "emplacement": "Rayonnage A1"
+    }
+
+GET /api/articles/1
+  Description : Afficher un article avec infos stock
+
+PUT /api/articles/1
+  Description : Modifier les infos d'un article
+
+POST /api/articles/1/ajuster-stock
+  Description : Ajouter ou retirer du stock
+  Requête :
+    {
+      "quantite": 10,
+      "type": "entree",        (ou "sortie")
+      "motif": "Réapprovisionnement",
+      "commentaire": "Livraison fournisseur ABC"
+    }
+  
+  Processus :
+    1. Augmente/diminue articles.quantite
+    2. Crée un MOUVEMENT pour audit
+    3. Enregistre quantite_avant et quantite_apres
+
+GET /api/articles/alertes
+  Description : Articles en alerte stock
+  Retourne : Articles où quantite <= seuil_alerte
+
+GET /api/articles/stats
+  Description : Statistiques stock
+  Réponse : Nombre articles, en alerte, valeur totale, etc.
+
+DELETE /api/articles/1
+  Description : Supprimer un article (soft delete)
+
+MOUVEMENTS (Stock) (/api/mouvement)
+───────────────────────────────────
+
+GET /api/mouvement?article_id=1&type=sortie
+  Description : Historique des mouvements
+  Filtres : article_id, type, date, per_page
+
+POST /api/mouvement
+  Description : Créer un mouvement manuellement
+  Requête :
+    {
+      "article_id": 1,
+      "type": "sortie",
+      "quantite": 2,
+      "motif": "Commande #COM001",
+      "commentaire": "Utilisation en production",
+      "date_mouvement": "2026-01-18"
+    }
+
+GET /api/articles/1/historique-mouvement
+  Description : Historique complet d'un article
+  Réponse :
+    {
+      "article": {...},
+      "mouvements": [
+        {
+          "date": "2026-01-20",
+          "type": "sortie",
+          "quantite": 2,
+          "avant": 10,
+          "apres": 8,
+          "motif": "Commande #COM001"
+        },
+        {
+          "date": "2026-01-18",
+          "type": "entree",
+          "quantite": 10,
+          "avant": 0,
+          "apres": 10,
+          "motif": "Réapprovisionnement"
+        }
+      ]
+    }
+
+GET /api/mouvement/stats
+  Description : Statistiques des mouvements
+  Réponse : Entrées totales, sorties totales, article le plus vendu, etc.
+
+DÉPENSES (/api/depenses)
+─────────────────────────
+
+GET /api/depenses?categorie=Transport&per_page=20
+  Description : Liste les dépenses
+  Filtres : categorie, date, per_page
+
+POST /api/depenses
+  Description : Enregistrer une dépense
+  Requête :
+    {
+      "categorie": "Achat matériaux",
+      "description": "Achat PVC fournisseur ABC",
+      "montant": 2500,
+      "date": "2026-01-18"
+    }
+  
+  Catégories possibles :
+    - Achat matériaux
+    - Transport
+    - Électricité
+    - Maintenance
+    - Autre
+
+GET /api/depenses/1
+  Description : Afficher une dépense
+
+PUT /api/depenses/1
+  Description : Modifier une dépense
+
+DELETE /api/depenses/1
+  Description : Supprimer une dépense (soft delete)
+
+GET /api/depenses/stats
+  Description : Statistiques par catégorie
+  Réponse :
+    {
+      "total": 25000,
+      "achat_materiaux": 18000,
+      "transport": 3000,
+      "electricite": 2500,
+      "maintenance": 1000,
+      "autre": 500
+    }
+
+DASHBOARD (/api/dashboard)
+──────────────────────────
+
+GET /api/dashboard?periode=mois
+  Description : Vue d'ensemble du mois
+  Paramètres : mois | semaine | trimestre | annee
+  Réponse complète :
+    {
+      "stats": {
+        "commandes": 15,
+        "revenus": 25000,
+        "clients_actifs": 8,
+        "produits": 42
+      },
+      "details_commandes": {
+        "total": 15,
+        "en_attente": 3,
+        "en_production": 5,
+        "prete": 4,
+        "livrees": 2,
+        "annulees": 1
+      },
+      "commandes_recentes": [
+        {
+          "id": 5,
+          "numero_commande": "COM001",
+          "client": "Jean Dupont",
+          "montant_ttc": 1680,
+          "statut": "En production",
+          "date_commande": "18/01/2026"
+        }
+      ],
+      "top_articles": [
+        {
+          "nom": "Fenêtre PVC",
+          "reference": "FENETRE-PVC",
+          "quantite_sortie": 10
+        }
+      ],
+      "alertes": {
+        "stock_faible": 3,
+        "stock_critique": 1,
+        "devis_en_attente": 2,
+        "factures_impayees": 4,
+        "livraisons_du_jour": 1
+      }
+    }
+
+GET /api/dashboard/chart-data?periode=mois
+  Description : Données pour graphiques
+  Réponse :
+    {
+      "evolution_commandes": [
+        {
+          "date": "2026-01-18",
+          "commandes": 3,
+          "revenus": 5000
+        }
+      ],
+      "repartition_statuts": [
+        {
+          "statut": "En production",
+          "nombre": 5
+        }
+      ]
+    }
+
+================================================================================
+5. FLUX DE TRAVAIL MÉTIER COMPLETS
+================================================================================
+
+PROCESSUS 1 : CRÉATION D'UNE VENTE COMPLÈTE
+───────────────────────────────────────────
+
+Étape 1 : Créer un client
+─────────────────────────
+POST /api/clients
+{
+  "nom": "Dupont",
+  "prenom": "Jean",
+  "telephone": "0612345678",
+  "email": "jean@dupont.fr",
+  "adresse": "123 rue de la Paix",
+  "ville": "Paris",
+  "code_postal": "75000",
+  "type_client": "Particulier",
+  "date_inscription": "2026-01-18",
+  "statut": "Actif"
+}
+↓
+Réponse : Client créé avec ID = 1
+
+Étape 2 : Créer un devis en brouillon
+──────────────────────────────────────
+POST /api/devis
+{
+  "client_id": 1,
+  "date_emission": "2026-01-18",
+  "validite": 30,
+  "date_validite": "2026-02-17",
+  "remise": 10,
+  "acompte": 30,
+  "delai_livraison": "14 jours",
+  "conditions_paiement": "30 jours",
+  "notes": "Devis standard",
+  "lignes": [
+    {
+      "produit": "Fenêtre PVC 100x120",
+      "largeur": 1.0,
+      "hauteur": 1.2,
+      "quantite": 2,
+      "prix_unitaire": 350
+    }
+  ]
+}
+↓
+Réponse : Devis créé, statut "brouillon"
+  Total HT : 700 (2 × 350)
+  Remise 10% : -70
+  Total HT remise : 630
+  TVA 20% : 126
+  Total TTC : 756
+
+Étape 3 : Afficher le devis au client
+─────────────────────────────────────
+GET /api/devis/1
+
+Étape 4 : Le client accepte → Valider le devis
+───────────────────────────────────────────────
+POST /api/devis/1/valider
+
+Processus automatique :
+  1. Devis passe de "brouillon" à "accepte"
+  2. Création COMMANDE :
+     - Copie des lignes devis
+     - Statut : "En attente"
+     - Montants identiques
+  3. Création FACTURE :
+     - Copie articles_commande
+     - Statut : "Non payée"
+     - Date d'échéance : 30/01/2026
+
+↓
+Réponse :
+{
+  "message": "Devis validé. Commande et facture créées.",
+  "commande_id": 5,
+  "facture_id": 10
+}
+
+Étape 5 : Suivre la production
+───────────────────────────────
+POST /api/commandes/5/statut
+{ "statut": "En production" }
+
+Attendre quelques jours...
+
+POST /api/commandes/5/statut
+{ "statut": "Prête" }
+
+Étape 6 : Livrer et facturer
+──────────────────────────────
+GET /api/factures/10
+(Vérifier les détails)
+
+POST /api/commandes/5/statut
+{ "statut": "Livrée" }
+
+Étape 7 : Enregistrer le paiement
+──────────────────────────────────
+Client paie → Enregistrer le paiement
+
+POST /api/factures/10/payer
+{
+  "montant_paye": 756,
+  "mode_paiement": "Virement",
+  "date_paiement": "2026-02-05"
+}
+
+↓
+Facture passe à "Payée"
+Clients.total_achats += 756
+Clients.nombre_commandes += 1
+
+FIN : Vente complète et payée ✅
+
+PROCESSUS 2 : GESTION DU STOCK
+──────────────────────────────
+
+Étape 1 : Ajouter un article au catalogue
+──────────────────────────────────────────
+POST /api/articles
+{
+  "nom": "Fenêtre PVC 100x120",
+  "reference": "FENETRE-PVC-100x120",
+  "categorie": "Fenêtres",
+  "quantite": 0,
+  "unite": "pcs",
+  "seuil_alerte": 2,
+  "prix_achat": 350,
+  "fournisseur": "ABC Menuiserie",
+  "emplacement": "Rayonnage A1"
+}
+
+Étape 2 : Réception de stock
+────────────────────────────
+POST /api/articles/1/ajuster-stock
+{
+  "quantite": 10,
+  "type": "entree",
+  "motif": "Réapprovisionnement",
+  "commentaire": "Livraison fournisseur ABC"
+}
+
+Processus :
+  1. quantite : 0 → 10
+  2. Crée MOUVEMENT :
+     Type : entree
+     Quantité : 10
+     Avant : 0
+     Après : 10
+     Date : 2026-01-18
+
+Étape 3 : Vérifier les alertes
+───────────────────────────────
+GET /api/articles/alertes
+
+Si quantite <= seuil_alerte :
+  → Affiche article en alerte
+  → Gestionnaire peut commander plus
+
+Étape 4 : Utiliser du stock (pendant production)
+──────────────────────────────────────────────────
+POST /api/articles/1/ajuster-stock
+{
+  "quantite": 2,
+  "type": "sortie",
+  "motif": "Commande #COM001",
+  "commentaire": "Utilisation en fabrication"
+}
+
+Processus :
+  1. quantite : 10 → 8
+  2. Crée MOUVEMENT :
+     Type : sortie
+     Quantité : 2
+     Avant : 10
+     Après : 8
+     Motif : Commande #COM001
+
+Étape 5 : Audit complet d'un article
+────────────────────────────────────
+GET /api/articles/1/historique-mouvement
+
+Réponse : Tous les mouvements (entrées + sorties)
+  20/01 : Sortie 2 (avant: 10, après: 8)
+  18/01 : Entree 10 (avant: 0, après: 10)
+
+PROCESSUS 3 : ANALYSE FINANCIÈRE
+─────────────────────────────────
+
+Étape 1 : Enregistrer une dépense
+──────────────────────────────────
+POST /api/depenses
+{
+  "categorie": "Achat matériaux",
+  "description": "Achat PVC chez ABC Menuiserie",
+  "montant": 2500,
+  "date": "2026-01-18"
+}
+
+Étape 2 : Voir les dépenses par catégorie
+──────────────────────────────────────────
+GET /api/depenses/stats
+
+Réponse :
+{
+  "total": 25000,
+  "achat_materiaux": 18000,   ← 72% du budget
+  "transport": 3000,
+  "electricite": 2500,
+  "maintenance": 1000,
+  "autre": 500
+}
+
+Étape 3 : Voir le dashboard du mois
+────────────────────────────────────
+GET /api/dashboard?periode=mois
+
+Réponse :
+{
+  "stats": {
+    "revenus": 25000,           ← CA du mois
+    "commandes": 15
+  },
+  "alertes": {
+    "factures_impayees": 4      ← 4 factures à relancer
+  }
+}
+
+Analyse :
+  Revenus : 25000
+  Dépenses : 25000
+  Marge brute : 0
+  → Pas rentable ce mois ! À investiguer.
+
+================================================================================
+6. BONNES PRATIQUES ET SÉCURITÉ
+================================================================================
+
+VALIDATION DES DONNÉES
+──────────────────────
+
+Toute donnée reçue DOIT être validée avant d'être traitée.
+
+Exemple : Créer un client
+  Validation :
+    ✓ nom = string, max 255 caractères
+    ✓ telephone = string, format valide
+    ✓ email = email valide, unique
+    ✓ type_client = Particulier OU Professionnel
+    ✓ statut = Actif OU Inactif OU VIP
+
+Si une validation échoue :
+  → Erreur 422 Unprocessable Entity
+  → Message : "Le champ email doit être unique"
+
+AUTHENTIFICATION ET AUTORISATIONS
+──────────────────────────────────
+
+Chaque requête DOIT avoir un token valide (sauf login).
+
+Exemple :
+  GET /api/clients
+  Header : Authorization: Bearer TOKEN_VALIDE
+  → OK, accès autorisé
+
+  GET /api/clients
+  (pas de token)
+  → Erreur 401 Unauthorized
+
+Permissions granulaires :
+  Rôle "responsable_commercial" :
+    ✓ create_devis
+    ✓ edit_devis
+    ✓ view_commandes
+    ✗ delete_users
+    ✗ edit_factures
+
+TRANSACTIONS DATABASE
+─────────────────────
+
+Opérations complexes (créer devis + lignes + calculs) :
+  → Utiliser les TRANSACTIONS
+  → Si une étape échoue → ROLLBACK (annule tout)
+
+Exemple : Valider un devis
+  1. BEGIN TRANSACTION
+  2. Mettre devis à "accepte"
+  3. Créer commande
+  4. Créer articles_commande
+  5. Créer facture
+  6. Créer articles_facture
+  
+  Si une étape échoue → ROLLBACK (revient à l'état d'avant)
+  Si tout OK → COMMIT
+
+SOFT DELETES
+────────────
+
+Les données ne sont jamais supprimées, juste marquées comme supprimées.
+
+Avantages :
+  ✓ Récupération possible
+  ✓ Audit complet
+  ✓ Pas d'erreurs de FK
+  ✓ Données historiques conservées
+
+Important :
+  Quand on lit les données, TOUJOURS filter :
+    WHERE deleted_at IS NULL
+
+GESTION DES ERREURS
+───────────────────
+
+Statuts HTTP à utiliser :
+  200 OK                      → Requête réussie (lecture)
+  201 Created                 → Ressource créée
+  400 Bad Request             → Validation échouée
+  401 Unauthorized            → Token invalide
+  403 Forbidden               → Pas de permission
+  404 Not Found               → Ressource inexistante
+  422 Unprocessable Entity    → Données invalides
+  500 Internal Server Error   → Erreur serveur
+
+Toujours retourner un message JSON explicite :
+  {
+    "message": "Le champ email doit être unique",
+    "errors": {
+      "email": ["The email has already been taken"]
+    }
+  }
+
+CALCULS DE PRIX
+───────────────
+
+RÈGLE FONDAMENTALE : NE JAMAIS accepter le prix du frontend
+
+Pourquoi ?
+  → Un client malveillant pourrait envoyer un prix zéro
+  → Seul le serveur connaît la vraie formule de pricing
+
+Processus correct :
+  1. Frontend envoie : largeur, hauteur, quantité
+  2. Serveur calcule le prix avec PricingService
+  3. Serveur retourne le prix calculé
+  4. Frontend affiche le prix (ou le recalcule pour vérification)
+
+MONTANTS FINANCIERS
+────────────────────
+
+Règles :
+  ✓ Toujours stocker avec 2 décimales (decimal(12,2))
+  ✓ Jamais de calculs flottants en PHP (imprécision)
+  ✓ Utiliser BCMath pour opérations critiques
+  ✓ Caster en float en JSON : (float) $value
+
+Exemple correct :
+  $prix = 10.00;
+  $quantite = 3;
+  $total = bcmul($prix, $quantite, 2);  // 30.00 (exact)
+
+Exemple incorrect :
+  $total = 10.00 * 3;  // Peut donner 29.999999999
+  $total = round($total, 2);  // Correction après coup (mauvais)
+
+PAGINATION
+──────────
+
+Toujours utiliser la pagination pour les listes.
+
+GET /api/clients?per_page=20&page=2
+
+Réponse :
+{
+  "data": [...],
+  "meta": {
+    "total": 100,
+    "per_page": 20,
+    "current_page": 2,
+    "last_page": 5,
+    "from": 21,
+    "to": 40
+  },
+  "links": {
+    "first": "...",
+    "last": "...",
+    "prev": "...",
+    "next": "..."
+  }
+}
+
+Évite de charger 100000 enregistrements en même temps.
+
+FILTRES ET TRI
+──────────────
+
+Toujours supporter les filtres courants :
+  GET /api/commandes?statut=En+production&sort_by=created_at&sort_order=asc
+
+RATE LIMITING
+─────────────
+
+Important pour éviter les abus :
+  - Max 60 requêtes par minute par utilisateur
+  - Max 1000 requêtes par heure par utilisateur
+
+Implémenté avec middleware Laravel.
+
+LOGGING
+───────
+
+Tous les accès DOIVENT être loggés :
+  - Qui a accédé ?
+  - Quand ?
+  - Quoi (création/modification de quelle ressource) ?
+
+Cela permet l'audit complet du système.
+
+================================================================================
+7. GUIDE DE DÉPLOIEMENT ET MAINTENANCE
+================================================================================
+
+PRÉ-REQUIS SERVEUR
+──────────────────
+
+Avant de déployer, vérifier :
+  ✓ PHP 8.2 ou plus
+  ✓ MySQL 8.0 ou MariaDB 10.5+
+  ✓ Composer (gestionnaire de packages PHP)
+  ✓ Node.js (optionnel, pour frontend)
+  ✓ Git (pour versionning)
+
+INSTALLATION LOCALE (Développement)
+────────────────────────────────────
+
+1. Cloner le projet
+   git clone https://github.com/projet/gestion-menuiserie.git
+   cd gestion-menuiserie
+
+2. Installer les dépendances PHP
+   composer install
+
+3. Copier le fichier .env
+   cp .env.example .env
+
+4. Générer la clé application
+   php artisan key:generate
+
+5. Configurer la base de données dans .env
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=gestion_menuiserie
+   DB_USERNAME=root
+   DB_PASSWORD=
+
+6. Exécuter les migrations
+   php artisan migrate
+   (crée les tables)
+
+7. Seeder les données de test (optionnel)
+   php artisan db:seed
+
+8. Générer un token pour tester
+   php artisan tinker
+   > User::first()->createToken('test')->plainTextToken
+
+9. Lancer le serveur local
+   php artisan serve
+
+   L'API sera accessible à :
+   http://localhost:8000/api
+
+VARIABLES D'ENVIRONNEMENT (.env)
+────────────────────────────────
+
+APP_NAME=Gestion Menuiserie
+APP_ENV=local
+APP_KEY=base64:...
+APP_DEBUG=true
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=gestion_menuiserie
+DB_USERNAME=root
+DB_PASSWORD=
+
+MAIL_DRIVER=smtp
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_FROM_ADDRESS=noreply@menuiserie.fr
+MAIL_FROM_NAME="Gestion Menuiserie"
+
+SANCTUM_STATEFUL_DOMAINS=localhost:3000,localhost:8000
+
+MIGRATIONS (Mises à Jour BD)
+────────────────────────────
+
+Les migrations sont des "scripts" qui modifient la structure de la BD.
+
+Créer une nouvelle migration :
+  php artisan make:migration create_new_table
+
+Exécuter les migrations :
+  php artisan migrate
+
+Annuler les migrations (danger!) :
+  php artisan migrate:rollback
+
+FICHIERS DE LOG
+───────────────
+
+Tous les erreurs sont enregistrées dans :
+  storage/logs/laravel.log
+
+Vérifier en cas de problème :
+  tail -f storage/logs/laravel.log
+
+CACHE
+─────
+
+Pour nettoyer le cache :
+  php artisan cache:clear
+  php artisan config:clear
+  php artisan route:clear
+  php artisan view:clear
+
+BACKUP
+──────
+
+Important : Faire des backups réguliers de la BD !
+
+Backup SQL :
+  mysqldump -u root -p gestion_menuiserie > backup_20260118.sql
+
+Restauration :
+  mysql -u root -p gestion_menuiserie < backup_20260118.sql
+
+MAINTENANCE
+───────────
+
+Mode maintenance (voir message à tous) :
+  php artisan down --message="Maintenance en cours"
+
+Retirer le mode maintenance :
+  php artisan up
+
+TESTS
+─────
+
+Exécuter les tests :
+  php artisan test
+
+Ou uniquement les tests d'une classe :
+  php artisan test tests/Feature/ClientControllerTest.php
+
+DÉPLOIEMENT PRODUCTION
+──────────────────────
+
+Étapes clés :
+
+1. Préparer le serveur
+   - PHP 8.2+
+   - MySQL 8.0+
+   - Nginx ou Apache
+   - SSL/TLS (HTTPS obligatoire)
+
+2. Cloner le projet
+   git clone ...
+   cd gestion-menuiserie
+
+3. Installer les dépendances
+   composer install --no-dev
+
+4. Configurer .env (production)
+   APP_ENV=production
+   APP_DEBUG=false
+   DB_HOST=db.example.com
+   DB_USERNAME=...
+   DB_PASSWORD=...
+
+5. Migrer la BD
+   php artisan migrate --force
+
+6. Optimiser
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+
+7. Configurer Nginx
+   - Document root : /public
+   - Redirection vers index.php
+   - SSL certifié
+
+8. Permissions fichiers
+   chmod -R 755 storage
+   chmod -R 755 bootstrap/cache
+
+9. Supervision
+   - Monitorer storage/logs/laravel.log
+   - Vérifier la BD régulièrement
+   - Backups quotidiens
+
+PROBLÈMES COURANTS
+──────────────────
+
+Erreur : "The application is in production mode and unable to run migrations"
+Solut : php artisan migrate --force
+
+Erreur : "Call to undefined method ... User::createToken"
+Solut : php artisan vendor:publish --provider="Laravel\Sanctum\SanctumServiceProvider"
+
+Erreur : "SQLSTATE[HY000]: General error: 1030 Got error..."
+Solut : Vérifier l'espace disque disponible
+
+Erreur : "Maximum call stack size exceeded"
+Solut : Cycles de relations, vérifier les includes dans les Resources
+
+================================================================================
+CONCLUSION
+================================================================================
+
+Ce guide couvre TOUS les aspects du projet :
+
+✓ Architecture générale
+✓ Base de données (15 tables, relations, cycles de vie)
+✓ API REST complète (35+ endpoints)
+✓ Flux métier (vente, stock, finances)
+✓ Bonnes pratiques (validation, auth, transactions)
+✓ Déploiement et maintenance
+
+Pour bien utiliser ce projet :
+
+1. Commencer par comprendre les 3 flux principaux :
+   - Cycle vente (client → devis → commande → facture)
+   - Cycle stock (article → mouvements → audit)
+   - Cycle financier (dépenses → analyse rentabilité)
+
+2. Respecter les patterns :
+   - Validation des données
+   - Transactions pour opérations complexes
+   - Soft deletes pour audibilité
+   - Ressources JSON structurées
+
+3. Tester chaque fonctionnalité :
+   - Tests unitaires pour logique métier
+   - Tests d'intégration pour flux complets
+   - Tests de performance avant prod
+
+4. Maintenir à jour :
+   - Migrations BD pour structure
+   - Logs et monitoring en prod
+   - Backups réguliers
+   - Security patches
+
+Le projet est robuste, extensible et prêt pour :
+✓ Une petite menuiserie (5-10 employés)
+✓ Évolution future (multi-sites, multi-devises)
+✓ Intégration avec comptabilité (exports XML)
+
+Questions ou besoin d'aide ? Consulter les deux guides détaillés :
+- GUIDE_BDD.md (base de données uniquement)
+- GUIDE_ROUTES_CONTROLLERS.md (API uniquement)
+
+================================================================================
+Version 1.0 | 18 Janvier 2026 | Équipe Développement
+================================================================================

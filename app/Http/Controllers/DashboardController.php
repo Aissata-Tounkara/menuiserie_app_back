@@ -11,6 +11,7 @@ use App\Models\Facture;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -19,6 +20,7 @@ class DashboardController extends Controller
         // Période par défaut : mois en cours
         $periode = $request->input('periode', 'mois');
 
+        // Définir les dates selon la période
         $dateDebut = match ($periode) {
             'semaine' => now()->startOfWeek(),
             'trimestre' => now()->startOfQuarter(),
@@ -28,107 +30,136 @@ class DashboardController extends Controller
 
         $dateFin = now();
 
-        // === STATS PRINCIPALES ===
+        // === STATS PRINCIPALES (selon la période) ===
 
-        // Commandes
-        $commandesQuery = Commande::byPeriod($dateDebut, $dateFin);
-        $statsCommandes = [
-            'total' => $commandesQuery->count(),
-            'en_attente' => $commandesQuery->clone()->enAttente()->count(),
-            'en_production' => $commandesQuery->clone()->enProduction()->count(),
-            'livrees' => $commandesQuery->clone()->livrees()->count(),
-        ];
+        // 1. Nombre de commandes dans la période
+        $nombreCommandes = Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+            ->whereNull('deleted_at')
+            ->count();
 
-        // Revenus (basés sur les commandes)
-        $revenusTotal = $commandesQuery->clone()->sum('montant_ttc');
-
-        // Factures payées (si tu veux garder cette métrique)
-        $facturesPayees = Facture::payees()
-            ->whereBetween('date_paiement', [$dateDebut, $dateFin])
+        // 2. Revenus (total des commandes dans la période)
+        $revenus = Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+            ->whereNull('deleted_at')
             ->sum('montant_ttc');
 
-        // Clients
-        $clientsQuery = Client::query();
-        $statsClients = [
-            'total' => $clientsQuery->count(),
-            'actifs' => $clientsQuery->clone()->actif()->count(),
-            'vip' => $clientsQuery->clone()->vip()->count(),
-            'nouveaux' => Client::whereBetween('date_inscription', [$dateDebut, $dateFin])->count(),
+        // 3. Clients actifs (ayant des commandes En production ou Prête dans la période)
+        $clientsActifs = Client::whereHas('commandes', function ($query) use ($dateDebut, $dateFin) {
+                $query->whereBetween('date_commande', [$dateDebut, $dateFin])
+                    ->whereIn('statut', ['En production', 'Prête'])
+                    ->whereNull('commandes.deleted_at');
+            })
+            ->whereNull('clients.deleted_at')
+            ->distinct()
+            ->count('clients.id');
+
+        // 4. Nombre total de produits (articles)
+        $nombreProduits = Article::whereNull('deleted_at')->count();
+
+        // === DÉTAILS DES COMMANDES ===
+        $statsCommandes = [
+            'total' => $nombreCommandes,
+            'en_attente' => Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+                ->where('statut', 'En attente')
+                ->whereNull('deleted_at')
+                ->count(),
+            'en_production' => Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+                ->where('statut', 'En production')
+                ->whereNull('deleted_at')
+                ->count(),
+            'prete' => Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+                ->where('statut', 'Prête')
+                ->whereNull('deleted_at')
+                ->count(),
+            'livrees' => Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+                ->where('statut', 'Livrée')
+                ->whereNull('deleted_at')
+                ->count(),
+            'annulees' => Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+                ->where('statut', 'Annulée')
+                ->whereNull('deleted_at')
+                ->count(),
         ];
 
-        // Articles (stock)
-        $statsArticles = [
-            'total' => Article::count(),
-            'actifs' => Article::where('quantite', '>', 0)->count(), // ou juste count()
-        ];
-
-        // === DONNÉES DÉTAILLÉES ===
-
-        // Commandes récentes
+        // === 10 COMMANDES RÉCENTES ===
         $commandesRecentes = Commande::with('client')
-            ->recent(10)
+            ->whereNull('commandes.deleted_at')
+            ->orderBy('date_commande', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
             ->get()
             ->map(function ($commande) {
                 return [
-                    'id' => $commande->numero_commande,
-                    'client' => optional($commande->client)->nom_complet ?? 'Client supprimé',
-                    'produit' => 'Voir détails', // ou liste des articles si tu veux
-                    'montant' => (float) $commande->montant_ttc,
+                    'id' => $commande->id,
+                    'numero_commande' => $commande->numero_commande,
+                    'client' => $commande->client ? ($commande->client->nom . ' ' . $commande->client->prenom) : 'Client supprimé',
+                    'client_id' => $commande->client_id,
+                    'montant_ttc' => (float) $commande->montant_ttc,
+                    'montant_ht' => (float) $commande->montant_ht,
                     'statut' => $commande->statut,
-                    'date' => $commande->date_commande?->format('d/m/Y'),
+                    'date_commande' => $commande->date_commande ? $commande->date_commande->format('d/m/Y') : null,
+                    'date_livraison' => $commande->date_livraison ? $commande->date_livraison->format('d/m/Y') : null,
                 ];
             });
 
-        // Top articles consommés (sorties de stock)
-        $topArticles = Article::selectRaw('articles.*, COALESCE(SUM(ms.quantite), 0) as total_sorties')
-            ->leftJoin('mouvements_stock as ms', function ($join) {
-                $join->on('articles.id', '=', 'ms.article_id')
-                     ->where('ms.type', '=', 'sortie');
+        // === TOP ARTICLES CONSOMMÉS (optionnel) ===
+        $topArticles = DB::table('articles')
+            ->leftJoin('mouvements_stock', function ($join) use ($dateDebut, $dateFin) {
+                $join->on('articles.id', '=', 'mouvements_stock.article_id')
+                    ->where('mouvements_stock.type', '=', 'sortie')
+                    ->whereBetween('mouvements_stock.date_mouvement', [$dateDebut, $dateFin]);
             })
-            ->groupBy('articles.id')
+            ->whereNull('articles.deleted_at')
+            ->select('articles.nom', 'articles.reference', DB::raw('COALESCE(SUM(mouvements_stock.quantite), 0) as total_sorties'))
+            ->groupBy('articles.id', 'articles.nom', 'articles.reference')
             ->orderByDesc('total_sorties')
             ->limit(5)
             ->get()
             ->map(function ($article) {
                 return [
                     'nom' => $article->nom,
-                    'consommations' => (int) $article->total_sorties,
+                    'reference' => $article->reference,
+                    'quantite_sortie' => (int) $article->total_sorties,
                 ];
             });
 
-        // Alertes
+        // === ALERTES ===
         $alertes = [
-            'stock_faible' => Article::enAlerte()->count(),
-            'stock_critique' => Article::critique()->count(),
-            'devis_en_attente' => Devis::enAttente()->count(),
-            'factures_en_retard' => Facture::enRetard()->count(),
-            'livraisons_du_jour' => Commande::where('date_livraison', now()->format('Y-m-d'))
+            'stock_faible' => Article::where('quantite', '<=', DB::raw('seuil_alerte'))
+                ->where('quantite', '>', 0)
+                ->whereNull('deleted_at')
+                ->count(),
+            'stock_critique' => Article::where('quantite', '=', 0)
+                ->whereNull('deleted_at')
+                ->count(),
+            'devis_en_attente' => Devis::where('statut', 'brouillon')
+                ->orWhere('statut', 'envoye')
+                ->whereNull('deleted_at')
+                ->count(),
+            'factures_impayees' => Facture::whereIn('statut', ['Non payée', 'En retard'])
+                ->whereNull('deleted_at')
+                ->count(),
+            'livraisons_du_jour' => Commande::whereDate('date_livraison', now()->format('Y-m-d'))
                 ->whereIn('statut', ['Prête', 'En production'])
+                ->whereNull('deleted_at')
                 ->count(),
         ];
 
-        // Dépenses du mois
-        $depensesTotal = Depense::getTotalByMonth($dateDebut->format('Y-m'));
-
         return response()->json([
             'stats' => [
-                'commandes' => $statsCommandes,
-                'revenus' => [
-                    'total' => $revenusTotal,
-                    'factures_payees' => $facturesPayees,
-                ],
-                'clients' => $statsClients,
-                'articles' => $statsArticles,
-                'depenses' => [
-                    'total_mois' => $depensesTotal,
-                ],
+                'commandes' => $nombreCommandes,
+                'revenus' => (float) $revenus,
+                'clients_actifs' => $clientsActifs,
+                'produits' => $nombreProduits,
             ],
+            'details_commandes' => $statsCommandes,
             'commandes_recentes' => $commandesRecentes,
-            'top_produits' => $topArticles, // ce sont des articles consommés
+            'top_articles' => $topArticles,
             'alertes' => $alertes,
-            'periode' => $periode,
-            'date_debut' => $dateDebut->format('Y-m-d'),
-            'date_fin' => $dateFin->format('Y-m-d'),
+            'periode' => [
+                'type' => $periode,
+                'date_debut' => $dateDebut->format('Y-m-d'),
+                'date_fin' => $dateFin->format('Y-m-d'),
+            ],
         ]);
     }
 
@@ -143,40 +174,39 @@ class DashboardController extends Controller
             default => now()->startOfMonth(),
         };
 
-        // Évolution des commandes
-        $evolutionCommandes = Commande::byPeriod($dateDebut, now())
-            ->selectRaw('DATE(date_commande) as date, COUNT(*) as commandes, SUM(montant_ttc) as revenus')
+        $dateFin = now();
+
+        // Évolution des commandes par jour
+        $evolutionCommandes = Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+            ->whereNull('deleted_at')
+            ->selectRaw('DATE(date_commande) as date, COUNT(*) as nombre, SUM(montant_ttc) as revenus')
             ->groupBy('date')
             ->orderBy('date')
             ->get()
             ->map(function ($item) {
                 return [
                     'date' => $item->date,
-                    'commandes' => (int) $item->commandes,
+                    'commandes' => (int) $item->nombre,
                     'revenus' => (float) $item->revenus,
                 ];
             });
 
-        // Top articles (pour graphique)
-        $ventesParArticle = Article::selectRaw('articles.nom, COALESCE(SUM(ms.quantite), 0) as ventes')
-            ->leftJoin('mouvements_stock as ms', function ($join) {
-                $join->on('articles.id', '=', 'ms.article_id')
-                     ->where('ms.type', '=', 'sortie');
-            })
-            ->groupBy('articles.id')
-            ->orderByDesc('ventes')
-            ->limit(5)
+        // Répartition par statut
+        $repartitionStatuts = Commande::whereBetween('date_commande', [$dateDebut, $dateFin])
+            ->whereNull('deleted_at')
+            ->selectRaw('statut, COUNT(*) as nombre')
+            ->groupBy('statut')
             ->get()
             ->map(function ($item) {
                 return [
-                    'name' => $item->nom,
-                    'ventes' => (int) $item->ventes,
+                    'statut' => $item->statut,
+                    'nombre' => (int) $item->nombre,
                 ];
             });
 
         return response()->json([
-            'ventes_par_produit' => $ventesParArticle,
             'evolution_commandes' => $evolutionCommandes,
+            'repartition_statuts' => $repartitionStatuts,
         ]);
     }
 }

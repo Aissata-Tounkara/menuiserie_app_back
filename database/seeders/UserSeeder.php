@@ -7,12 +7,14 @@ use App\Models\User;
 
 class UserSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        User::create([
-            'name' => 'Admin Menuiserie',
-            'email' => 'tounkaraaissata474@gmail.com',
-            'password' => 'password123', //Sera haché automatiquement vie le model User
-        ]);
+        User::updateOrCreate(
+            ['email' => 'tounkaraaissata474@gmail.com'], // clé unique
+            [
+                'name' => 'Admin Menuiserie',
+                'password' => 'Password123'
+            ]
+        );
     }
 }

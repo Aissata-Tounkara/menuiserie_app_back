@@ -7,6 +7,7 @@ use App\Http\Requests\UpdateFactureRequest;
 use App\Http\Resources\FactureResource;
 use App\Models\Facture;
 use App\Models\Commande;
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\ClientService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -251,6 +252,28 @@ class FactureController extends Controller
     return response()->json([
         'data' => $stats
     ]);
+}
+
+public function telechargerPDF($id)
+{
+    // Récupérer la facture avec les relations
+    $facture = Facture::with(['client', 'articles', 'commande'])
+        ->findOrFail($id);
+    
+    // Calculer les totaux
+    $sousTotal = $facture->montant_ht;
+    $tva = $facture->tva;
+    $totalAPayer = $facture->montant_ttc;
+    
+    // Générer le PDF
+    $pdf = Pdf::loadView('factures.pdf', compact('facture', 'sousTotal', 'tva', 'totalAPayer'));
+    
+    // 🔥 Nettoyer le numéro de facture pour le nom de fichier
+    // Remplacer les caractères interdits (/, \, :, etc.) par des tirets
+    $numeroClean = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $facture->numero_facture);
+    
+    // Télécharger le PDF avec le nom nettoyé
+    return $pdf->download('facture-' . $numeroClean . '.pdf');
 }
 
 }
