@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Support\Facades\DB; // <--- AJOUTE CECI
 
 class Client extends Model
 {
@@ -44,9 +45,10 @@ class Client extends Model
         return $this->hasMany(Facture::class);
     }
 
+   // Dans Client.php
     public function commandes()
     {
-        return $this->hasMany(Commande::class);
+        return $this->hasMany(\App\Models\Commande::class);
     }
 
     public function updateStatut(): void
@@ -82,4 +84,22 @@ class Client extends Model
               ->orWhere('ville', 'like', "%{$search}%");
         });
     }
+
+    // Ajoute cette méthode dans la classe Client
+   // Client.php
+public function refreshStats(): void
+{
+    $stats = DB::table('commandes')
+        ->where('client_id', $this->id)
+        ->selectRaw('COUNT(*) as nb, SUM(montant_ttc) as total, MAX(date_commande) as derniere')
+        ->first();
+
+    $this->update([
+        'nombre_commandes' => $stats->nb ?? 0,
+        'total_achats' => $stats->total ?? 0,
+        'derniere_commande' => $stats->derniere ?? null,
+    ]);
+    
+    $this->updateStatut(); // Ceci appelle save() à l'intérieur
+}
 }

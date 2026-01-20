@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreDevisRequest;
-use App\Http\Requests\UpdateDevisRequest;
 use App\Http\Resources\DevisResource;
 use App\Models\Devis;
 use App\Models\LigneDevis;
@@ -48,75 +47,17 @@ class DevisController extends Controller
         return DevisResource::collection($devis);
     }
 
-    // ✅ ÉTAPE 1 : Sauvegarder le devis en "brouillon"
     public function store(StoreDevisRequest $request): JsonResponse
     {
         try {
             DB::beginTransaction();
 
+            // 1. Créer le devis
             $devisData = $request->except('lignes');
-            $devisData['statut'] = 'brouillon'; // Important !
+            $devisData['statut'] = 'accepte'; // Seule valeur logique avec ton enum réduit
             $devis = Devis::create($devisData);
 
-           // Dans DevisController@store
-
-foreach ($request->lignes as $index => $ligneData) {
-    // Calculer le prix unitaire côté serveur
-    $prixCalcule = PricingService::calculerPrixUnitaire(
-        $ligneData['produit'],
-        $ligneData['largeur'] ?? null,
-        $ligneData['hauteur'] ?? null
-    );
-
-    // Optionnel : valider que le prix envoyé correspond (si tu veux garder le champ)
-    // Mais mieux : ne PAS accepter prix_unitaire du frontend → le recalculer uniquement
-    $ligneData['prix_unitaire'] = $prixCalcule;
-    $ligneData['sous_total'] = $prixCalcule * $ligneData['quantite'];
-    $ligneData['ordre'] = $index;
-
-    $devis->lignes()->create($ligneData);
-}
-
-            $devis->calculerTotaux();
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Devis sauvegardé en brouillon',
-                'data' => new DevisResource($devis->load(['client', 'lignes']))
-            ], 201);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Erreur lors de la création du devis',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function show(Devis $devis): JsonResponse
-    {
-        $devis->load(['client', 'lignes']);
-        return response()->json(['data' => new DevisResource($devis)]);
-    }
-
-    public function update(UpdateDevisRequest $request, Devis $devis): JsonResponse
-    {
-    if ($devis->statut !== 'brouillon') {
-        return response()->json([
-            'message' => 'Impossible de modifier un devis déjà validé.'
-        ], 400);
-    }
-
-    try {
-        DB::beginTransaction();
-
-        $devis->update($request->except('lignes'));
-
-        if ($request->has('lignes')) {
-            $devis->lignes()->delete();
-
+            // 2. Créer les lignes du devis
             foreach ($request->lignes as $index => $ligneData) {
                 $prixCalcule = PricingService::calculerPrixUnitaire(
                     $ligneData['produit'],
@@ -140,51 +81,9 @@ foreach ($request->lignes as $index => $ligneData) {
             }
 
             $devis->calculerTotaux();
-        }
+            $devis->refresh();
 
-        DB::commit();
-
-        return response()->json([
-            'message' => 'Devis mis à jour',
-            'data' => new DevisResource($devis->load(['client', 'lignes']))
-        ]);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json([
-            'message' => 'Erreur lors de la modification',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
-
-    public function destroy(Devis $devis): JsonResponse
-    {
-        if ($devis->statut !== 'brouillon') {
-            return response()->json([
-                'message' => 'Impossible de supprimer un devis validé.'
-            ], 400);
-        }
-        $devis->delete();
-        return response()->json(['message' => 'Devis supprimé']);
-    }
-
-    // ✅ ÉTAPE 2 : Valider le devis → créer commande + facture
-    public function validerEtFacturer(Devis $devis): JsonResponse
-    {
-        if ($devis->statut !== 'brouillon') {
-            return response()->json([
-                'message' => 'Ce devis a déjà été validé.'
-            ], 400);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            // Mettre à jour le devis
-            $devis->update(['statut' => 'accepte']);
-
-            // Créer la commande
+            // 3. Créer la commande
             $commande = Commande::create([
                 'client_id' => $devis->client_id,
                 'devis_id' => $devis->id,
@@ -193,14 +92,15 @@ foreach ($request->lignes as $index => $ligneData) {
                 'statut' => 'En attente',
                 'montant_ht' => $devis->total_ht,
                 'montant_ttc' => $devis->total_ttc,
-                'notes' => "Créée depuis devis #{$devis->id}",
+                'notes' => "Créée automatiquement depuis devis #{$devis->id}",
             ]);
 
-            // Articles commande
+            // 4. Articles commande
             foreach ($devis->lignes as $ligne) {
                 $dimensions = '';
                 if ($ligne->largeur && $ligne->hauteur) {
                     $dimensions = "{$ligne->largeur}m × {$ligne->hauteur}m";
+                   
                 }
 
                 ArticleCommande::create([
@@ -212,7 +112,7 @@ foreach ($request->lignes as $index => $ligneData) {
                 ]);
             }
 
-            // Créer la facture (SANS TVA)
+            // 5. Créer la facture
             $facture = Facture::create([
                 'commande_id' => $commande->id,
                 'client_id' => $devis->client_id,
@@ -227,7 +127,7 @@ foreach ($request->lignes as $index => $ligneData) {
                 'notes' => "Facture auto pour devis #{$devis->id}",
             ]);
 
-            // Articles facture
+            // 6. Articles facture
             foreach ($commande->articles as $article) {
                 ArticleFacture::create([
                     'facture_id' => $facture->id,
@@ -238,21 +138,44 @@ foreach ($request->lignes as $index => $ligneData) {
                 ]);
             }
 
+            // 7. 🔥 Mettre à jour les stats du client
+            $devis->client->refreshStats(); // ← AJOUT ICI
+
             DB::commit();
 
             return response()->json([
-                'message' => 'Devis validé. Commande et facture créées.',
-                'devis' => new DevisResource($devis->load(['client', 'lignes'])),
+                'message' => 'Devis, commande et facture créés automatiquement.',
+                'data' => new DevisResource($devis->load(['client', 'lignes'])),
                 'commande_id' => $commande->id,
                 'facture_id' => $facture->id,
-            ], 200);
+            ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Erreur lors de la validation',
+                'message' => 'Erreur lors de la création des documents',
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function show(Devis $devis): JsonResponse
+    {
+        $devis->load(['client', 'lignes']);
+        return response()->json(['data' => new DevisResource($devis)]);
+    }
+
+    public function update($id): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Modification non autorisée : les devis sont définitifs.'
+        ], 403);
+    }
+
+    public function destroy($id): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Suppression non autorisée : les devis sont conservés.'
+        ], 403);
     }
 }

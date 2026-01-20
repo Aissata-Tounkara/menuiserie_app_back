@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-
 use App\Http\Requests\UpdateCommandeRequest;
 use App\Http\Resources\CommandeResource;
 use App\Models\Commande;
@@ -42,8 +41,14 @@ class CommandeController extends Controller
         return CommandeResource::collection($commandes);
     }
 
-    // ❌ DÉSACTIVÉ : la commande est créée automatiquement depuis le devis
-    // public function store(StoreCommandeRequest $request): JsonResponse { ... }
+    // ❌ CRÉATION MANUELLE DÉSACTIVÉE
+    // Toutes les commandes viennent d’un devis
+    public function store(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Les commandes sont créées automatiquement à partir des devis.'
+        ], 403);
+    }
 
     public function show(Commande $commande): JsonResponse
     {
@@ -60,9 +65,9 @@ class CommandeController extends Controller
             
             if ($request->has('articles')) {
                 $montantHT = 0;
-            foreach ($request->articles as $article) {
-                $montantHT += $article['prix'] * $article['quantite'];
-            }
+                foreach ($request->articles as $article) {
+                    $montantHT += $article['prix'] * $article['quantite'];
+                }
                 $updateData['montant_ht'] = $montantHT;
                 $updateData['montant_ttc'] = $montantHT; // Pas de TVA
 
@@ -91,7 +96,6 @@ class CommandeController extends Controller
 
     public function destroy(Commande $commande): JsonResponse
     {
-        // ⚠️ Empêcher la suppression si une facture existe
         if ($commande->facture) {
             return response()->json([
                 'message' => 'Impossible de supprimer une commande liée à une facture.'

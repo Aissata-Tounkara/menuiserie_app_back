@@ -28,18 +28,6 @@ class Facture extends Model
         'montant_paye' => 'decimal:2',
     ];
 
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($facture) {
-            if (empty($facture->numero_facture)) {
-                $last = self::whereYear('created_at', now()->year)->latest('id')->first();
-                $num = $last ? intval(substr($last->numero_facture, -3)) + 1 : 1;
-                $facture->numero_facture = 'F-' . str_pad($num, 3, '0', STR_PAD_LEFT) . '/' . now()->year;
-            }
-        });
-    }
 
     public function client()
     {
@@ -66,22 +54,35 @@ class Facture extends Model
     /**
      * Génère le prochain numéro de facture au format FAC-AAAA-NNN.
      */
-      public static function genererNumero(): string
+
+protected static function boot()
+{
+    parent::boot();
+
+    static::creating(function ($facture) {
+        if (empty($facture->numero_facture)) {
+            $facture->numero_facture = self::genererNumeroUnique();
+        }
+    });
+}
+
+    public static function genererNumeroUnique(): string
     {
-        $annee = Carbon::now()->format('Y'); // Ex: "2026"
+        $annee = now()->year;
+        $prefix = 'FAC-' . $annee . '-';
 
-        // Trouver la dernière facture de cette année
-        $derniereFacture = static::whereYear('created_at', $annee)
-            ->orderBy('numero_facture', 'desc')
-            ->first();
+        // Trouver le dernier numéro de cette année
+        $last = self::where('numero_facture', 'like', $prefix . '%')
+                    ->orderBy('numero_facture', 'desc')
+                    ->first();
 
-        if ($derniereFacture && preg_match('/FAC-' . $annee . '-(\d+)$/', $derniereFacture->numero_facture, $matches)) {
-            $increment = (int) $matches[1] + 1;
+        if ($last && preg_match('/' . preg_quote($prefix, '/') . '(\d+)$/', $last->numero_facture, $matches)) {
+            $next = (int) $matches[1] + 1;
         } else {
-            $increment = 1;
+            $next = 1;
         }
 
-        return 'FAC-' . $annee . '-' . str_pad($increment, 3, '0', STR_PAD_LEFT);
+        return $prefix . str_pad($next, 3, '0', STR_PAD_LEFT);
     }
     // pour le dashbord
     public function scopePayees($query)

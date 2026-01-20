@@ -43,15 +43,10 @@ class DashboardController extends Controller
             ->sum('montant_ttc');
 
         // 3. Clients actifs (ayant des commandes En production ou Prête dans la période)
-        $clientsActifs = Client::whereHas('commandes', function ($query) use ($dateDebut, $dateFin) {
-                $query->whereBetween('date_commande', [$dateDebut, $dateFin])
-                    ->whereIn('statut', ['En production', 'Prête'])
-                    ->whereNull('commandes.deleted_at');
-            })
-            ->whereNull('clients.deleted_at')
-            ->distinct()
-            ->count('clients.id');
-
+        // Nouvelle version basée sur le statut du client
+$clientsActifs = Client::where('statut', 'Actif')
+    ->whereNull('deleted_at')
+    ->count();
         // 4. Nombre total de produits (articles)
         $nombreProduits = Article::whereNull('deleted_at')->count();
 
