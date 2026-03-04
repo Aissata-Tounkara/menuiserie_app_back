@@ -89,7 +89,7 @@ class DevisController extends Controller
                 'devis_id' => $devis->id,
                 'date_commande' => now(),
                 'date_livraison' => $devis->date_validite,
-                'statut' => 'En attente',
+                'statut' => 'En production',
                 'montant_ht' => $devis->total_ht,
                 'montant_ttc' => $devis->total_ttc,
                 'notes' => "Créée automatiquement depuis devis #{$devis->id}",
@@ -138,8 +138,8 @@ class DevisController extends Controller
                 ]);
             }
 
-            // 7. 🔥 Mettre à jour les stats du client
-            $devis->client->refreshStats(); // ← AJOUT ICI
+          $devis->client->unsetRelation('commandes'); // Force Laravel à recompter
+            $devis->client->refreshStats();
 
             DB::commit();
 

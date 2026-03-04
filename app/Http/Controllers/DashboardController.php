@@ -98,13 +98,13 @@ $clientsActifs = Client::where('statut', 'Actif')
 
         // === TOP ARTICLES CONSOMMÉS (optionnel) ===
         $topArticles = DB::table('articles')
-            ->leftJoin('mouvements_stock', function ($join) use ($dateDebut, $dateFin) {
-                $join->on('articles.id', '=', 'mouvements_stock.article_id')
-                    ->where('mouvements_stock.type', '=', 'sortie')
-                    ->whereBetween('mouvements_stock.date_mouvement', [$dateDebut, $dateFin]);
+            ->leftJoin('mouvements', function ($join) use ($dateDebut, $dateFin) {
+                $join->on('articles.id', '=', 'mouvements.article_id')
+                    ->where('mouvements.type', '=', 'sortie')
+                    ->whereBetween('mouvements.date_mouvement', [$dateDebut, $dateFin]);
             })
             ->whereNull('articles.deleted_at')
-            ->select('articles.nom', 'articles.reference', DB::raw('COALESCE(SUM(mouvements_stock.quantite), 0) as total_sorties'))
+            ->select('articles.nom', 'articles.reference', DB::raw('COALESCE(SUM(mouvements.quantite), 0) as total_sorties'))
             ->groupBy('articles.id', 'articles.nom', 'articles.reference')
             ->orderByDesc('total_sorties')
             ->limit(5)
