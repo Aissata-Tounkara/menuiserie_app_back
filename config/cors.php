@@ -5,7 +5,10 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:5173'], // ton front React en dev
+    'allowed_origins' => [
+        'https://menuiserie-app-sooty.vercel.app',
+        'https://menuiserie-app.sahelstack.tech'
+    ],
 
     'allowed_origins_patterns' => [],
 
