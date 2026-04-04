@@ -10,6 +10,11 @@ use App\Http\Controllers\DepenseController;
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\MouvementController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Middleware\IsAdmin;
+use App\Http\Middleware\ActivityLogger;
+use App\Http\Controllers\Admin\ActivityLogController;
+use App\Http\Controllers\Admin\UserManagementController;
+use App\Http\Controllers\Admin\SessionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,10 +34,28 @@ Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| ROUTES ADMIN (réservées aux administrateurs)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:sanctum', IsAdmin::class])->prefix('admin')->group(function ()  {
+    
+    Route::get('activities', [ActivityLogController::class, 'index']);
+    Route::get('activities/{activity}', [ActivityLogController::class, 'show']);
+    Route::delete('activities/{activity}', [ActivityLogController::class, 'destroy']);
+    
+    Route::apiResource('users', UserManagementController::class)->except(['create', 'edit']);
+    Route::patch('users/{user}/role', [UserManagementController::class, 'updateRole']);
+    
+    Route::get('sessions', [SessionController::class, 'index']);
+    Route::delete('sessions/{sessionId}', [SessionController::class, 'destroy']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | ROUTES PROTÉGÉES
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', ActivityLogger::class])->group(function () {
 
     // ──────────────── DASHBOARD ────────────────
     Route::get('/dashboard', [DashboardController::class, 'index']);
@@ -51,7 +74,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('factures/stats', [FactureController::class, 'stats']);
     Route::post('factures/{facture}/payer', [FactureController::class, 'marquerPayee']);
     Route::apiResource('factures', FactureController::class);
-
 
     // ──────────────── CLIENTS ────────────────
     Route::prefix('clients')->group(function () {

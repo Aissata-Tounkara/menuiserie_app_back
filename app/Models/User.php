@@ -16,6 +16,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'last_login_ip',
+        'last_login_at',
     ];
 
     protected $hidden = [
@@ -26,11 +29,27 @@ class User extends Authenticatable
     // Hachage automatique si on assigne password via $user->password = '...'
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
     ];
 
     // Cette méthode setPasswordAttribute garantit que tout mot de passe assigné est haché, même dans le seeder.
     public function setPasswordAttribute($value)
     {
         $this->attributes['password'] = Hash::make($value);
+    }
+
+    public function hasRoleAdmin(): bool
+    {
+        return $this->role === 'admin' || $this->hasRole('admin');
+    }
+
+    public function scopeAdmins($query)
+    {
+        return $query->where('role', 'admin');
+    }
+
+    public function scopeEmployees($query)
+    {
+        return $query->where('role', 'employee');
     }
 }

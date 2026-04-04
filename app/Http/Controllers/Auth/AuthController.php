@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
+use App\Models\ActivityLog;
 use App\Http\Requests\Auth\ResetPasswordWithCodeRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -13,6 +14,15 @@ use Illuminate\Support\Facades\Mail;
 
 class AuthController extends Controller
 {
+    protected function resolveSessionId(Request $request, ?string $fallback = null): ?string
+    {
+        if ($request->hasSession()) {
+            return $request->session()->getId();
+        }
+
+        return $fallback;
+    }
+
     // Login
     public function login(Request $request)
     {
@@ -29,6 +39,17 @@ class AuthController extends Controller
         $user = Auth::user();
         $token = $user->createToken('auth-token')->plainTextToken;
 
+        ActivityLog::create([
+            'user_id' => $user->id,
+            'user_email' => $user->email,
+            'action' => 'login',
+            'module' => 'auth',
+            'description' => "Connexion de l'utilisateur {$user->email}",
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'session_id' => $this->resolveSessionId($request, $token),
+        ]);
+
         return response()->json([
             'user' => $user,
             'access_token' => $token,
@@ -39,7 +60,21 @@ class AuthController extends Controller
     // Logout
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+
+        ActivityLog::create([
+            'user_id' => $user?->id,
+            'user_email' => $user?->email,
+            'action' => 'logout',
+            'module' => 'auth',
+            'description' => "Déconnexion de l'utilisateur {$user?->email}",
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'session_id' => $this->resolveSessionId($request, $request->bearerToken()),
+        ]);
+
+        $user?->currentAccessToken()?->delete();
+
         return response()->json(['message' => 'Déconnecté avec succès']);
     }
 
@@ -66,6 +101,17 @@ class AuthController extends Controller
                     ->subject('Réinitialisation de mot de passe - Menuiserie');
         });
 
+        ActivityLog::create([
+            'user_id' => User::where('email', $email)->value('id'),
+            'user_email' => $email,
+            'action' => 'forgot_password',
+            'module' => 'auth',
+            'description' => "Demande de réinitialisation du mot de passe pour {$email}",
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'session_id' => $this->resolveSessionId($request),
+        ]);
+
         return response()->json(['message' => 'Un code à 6 chiffres a été envoyé à votre e-mail.']);
     }
 
@@ -89,6 +135,17 @@ class AuthController extends Controller
 
         // Supprimer le code utilisé
         DB::table('password_reset_codes')->where('email', $request->email)->delete();
+
+        ActivityLog::create([
+            'user_id' => $user->id,
+            'user_email' => $user->email,
+            'action' => 'reset_password',
+            'module' => 'auth',
+            'description' => "Réinitialisation du mot de passe pour {$user->email}",
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'session_id' => $this->resolveSessionId($request),
+        ]);
 
         return response()->json(['message' => 'Mot de passe mis à jour avec succès']);
     }

@@ -9,12 +9,32 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        User::updateOrCreate(
-            ['email' => 'tounkaraaissata474@gmail.com'], // clé unique
+        $users = [
             [
                 'name' => 'Admin Menuiserie',
-                'password' => 'Password123'
-            ]
-        );
+                'email' => 'admin@menuiserie.test',
+                'password' => 'Admin12345',
+                'role' => 'admin',
+            ],
+            [
+                'name' => 'Employe Menuiserie',
+                'email' => 'employee@menuiserie.test',
+                'password' => 'Employee12345',
+                'role' => 'employee',
+            ],
+        ];
+
+        foreach ($users as $userData) {
+            $user = User::updateOrCreate(
+                ['email' => $userData['email']],
+                [
+                    'name' => $userData['name'],
+                    'password' => $userData['password'],
+                    'role' => $userData['role'],
+                ]
+            );
+
+            $user->syncRoles([$userData['role']]);
+        }
     }
 }
