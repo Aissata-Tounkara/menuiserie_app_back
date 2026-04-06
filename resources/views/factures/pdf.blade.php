@@ -327,10 +327,10 @@
                         <span class="info-label">Nom du client:</span>
                         <span class="info-value">{{ $facture->client->nom }} {{ $facture->client->prenom }}</span>
                     </div>
-                    <div class="info-item">
+                    <!-- <div class="info-item">
                         <span class="info-label">Adresse:</span>
                         <span class="info-value">{{ $facture->client->adresse }}</span>
-                    </div>
+                    </div> -->
                     <div class="info-item">
                         <span class="info-label">Ville:</span>
                         <span class="info-value">{{ $facture->client->ville }}</span>
@@ -339,12 +339,12 @@
                         <span class="info-label">Téléphone:</span>
                         <span class="info-value">{{ $facture->client->telephone }}</span>
                     </div>
-                    @if($facture->client->email)
+                    <!-- @if($facture->client->email)
                     <div class="info-item">
                         <span class="info-label">Email:</span>
                         <span class="info-value">{{ $facture->client->email }}</span>
                     </div>
-                    @endif
+                    @endif -->
                 </div>
                 
                 <div class="facture-details">
@@ -357,10 +357,10 @@
                         <span class="info-label">Date d'émission:</span>
                         <span class="info-value">{{ \Carbon\Carbon::parse($facture->date_emission)->format('d/m/Y') }}</span>
                     </div>
-                    <div class="info-item">
+                    <!-- <div class="info-item">
                         <span class="info-label">Date d'échéance:</span>
                         <span class="info-value">{{ \Carbon\Carbon::parse($facture->date_echeance)->format('d/m/Y') }}</span>
-                    </div>
+                    </div> -->
                     <div class="info-item">
                         <span class="info-label">Statut:</span>
                         <span class="info-value">{{ $facture->statut }}</span>

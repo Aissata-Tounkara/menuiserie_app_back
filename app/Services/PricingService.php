@@ -7,12 +7,12 @@ class PricingService
     /**
      * Prix au mètre carré de l'aluminium (en F CFA)
      */
-    public const PRIX_ALU_M2 = 45000;
+    public const PRIX_ALU_M2 = 50000;
 
     /**
      * Taux de majoration pour les formats personnalisés (15%)
      */
-    public const TAUX_MAJORATION = 0.15;
+    public const TAUX_MAJORATION = 15;
 
     /**
      * Liste des formats standards avec leurs dimensions exactes et prix fixes.

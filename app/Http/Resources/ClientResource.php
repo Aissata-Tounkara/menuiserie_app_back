@@ -15,11 +15,8 @@ class ClientResource extends JsonResource
             'prenom' => $this->prenom,
             'nom_complet' => $this->nom_complet,
             'telephone' => $this->telephone,
-            'email' => $this->email,
-            'adresse' => $this->adresse,
             'ville' => $this->ville,
             // APRÈS
-            'codePostal' => $this->code_postal,
             'typeClient' => $this->type_client,
             'dateInscription' => $this->date_inscription?->format('d/m/Y'),
             'nombreCommandes' => $this->nombre_commandes,
