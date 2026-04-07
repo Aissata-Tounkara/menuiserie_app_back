@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class Facture extends Model
 {
@@ -43,12 +43,64 @@ class Facture extends Model
     {
         return $this->hasMany(ArticleFacture::class);
     }
+    // Relation avec les paiements
+    // Dans Facture.php, assurez-vous que la relation est correcte :
+public function paiements()
+{
+    return $this->hasMany(Paiement::class)
+                ->orderBy('date_paiement', 'desc')
+                ->withTrashed(); // Important si vous utilisez softDeletes
+}
 
-    public function getStatutCalculeAttribute()
+   // Total payé à partir des paiements
+    public function getTotalPayeAttribute(): float
     {
-        if ($this->montant_paye >= $this->montant_ttc) return 'Payée';
-        if (Carbon::parse($this->date_echeance)->isPast()) return 'En retard';
-        return 'En attente';
+        $paymentAmountColumn = $this->getPaymentAmountColumn();
+
+        if ($this->relationLoaded('paiements')) {
+            return (float) $this->paiements->sum(function ($paiement) use ($paymentAmountColumn) {
+                return (float) ($paiement->{$paymentAmountColumn} ?? 0);
+            });
+        }
+
+        return (float) $this->paiements()->sum($paymentAmountColumn);
+    }
+
+// Reste à payer
+    public function getResteAPayerAttribute(): float
+    {
+        return max(0, $this->montant_ttc - $this->total_paye);
+    }
+
+// Statut réel basé sur les paiements
+public function getStatutCalculeAttribute(): string
+{
+    $reste = $this->reste_a_payer;
+    
+    if ($reste <= 0) {
+        return 'Payée';
+    }
+    
+    if ($this->date_echeance && \Carbon\Carbon::parse($this->date_echeance)->isPast()) {
+        return 'En retard';
+    }
+    
+    if ($this->total_paye > 0) {
+        return 'Partiellement payée';
+    }
+    
+    return 'Non payée';
+}
+
+// Met à jour automatiquement le statut
+    public function refreshStatut(): void
+    {
+        $this->update(['statut' => $this->statut_calcule]);
+    }
+
+    protected function getPaymentAmountColumn(): string
+    {
+        return Schema::hasColumn('paiements', 'montant') ? 'montant' : 'montant_paye';
     }
 
     /**
@@ -63,6 +115,14 @@ protected static function boot()
         if (empty($facture->numero_facture)) {
             $facture->numero_facture = self::genererNumeroUnique();
         }
+        if (empty($facture->statut)) {
+            $facture->statut = 'Non payée';
+        }
+    });
+
+    // Après chaque sauvegarde, tu peux refresh le statut si tu veux
+    static::saved(function ($facture) {
+        // Optionnel : $facture->refreshStatut();
     });
 }
 

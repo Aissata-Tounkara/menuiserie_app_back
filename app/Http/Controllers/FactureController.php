@@ -141,15 +141,12 @@ class FactureController extends Controller
         return response()->json(['data' => $stats]);
     }
 
-    public function telechargerPDF($id)
+   public function telechargerPDF($id)
     {
-        $facture = Facture::with(['client', 'articles', 'commande'])->findOrFail($id);
+        $facture = Facture::with(['client', 'articles', 'commande', 'paiements'])->findOrFail($id);
         
-        $sousTotal = $facture->montant_ht;
-        $tva = $facture->tva;
-        $totalAPayer = $facture->montant_ttc;
-        
-        $pdf = Pdf::loadView('factures.pdf', compact('facture', 'sousTotal', 'tva', 'totalAPayer'));
+        // Les variables sont maintenant calculées automatiquement via les accessors
+        $pdf = Pdf::loadView('factures.pdf', compact('facture'));
         
         $numeroClean = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $facture->numero_facture);
         

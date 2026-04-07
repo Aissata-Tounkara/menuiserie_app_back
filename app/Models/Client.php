@@ -5,7 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Support\Facades\DB; // <--- AJOUTE CECI
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class Client extends Model
 {
@@ -76,12 +77,27 @@ class Client extends Model
 
     public function scopeSearch($query, $search)
     {
-        return $query->where(function ($q) use ($search) {
-            $q->where('nom', 'like', "%{$search}%")
-              ->orWhere('prenom', 'like', "%{$search}%")
-              ->orWhere('telephone', 'like', "%{$search}%")
-              ->orWhere('email', 'like', "%{$search}%")
-              ->orWhere('ville', 'like', "%{$search}%");
+        $searchableColumns = array_values(array_filter([
+            'nom',
+            'prenom',
+            'telephone',
+            Schema::hasColumn('clients', 'email') ? 'email' : null,
+            'ville',
+        ]));
+
+        if ($searchableColumns === []) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($search, $searchableColumns) {
+            foreach ($searchableColumns as $index => $column) {
+                if ($index === 0) {
+                    $q->where($column, 'like', "%{$search}%");
+                    continue;
+                }
+
+                $q->orWhere($column, 'like', "%{$search}%");
+            }
         });
     }
 

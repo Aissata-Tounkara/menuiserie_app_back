@@ -73,7 +73,17 @@ Route::middleware(['auth:sanctum', ActivityLogger::class])->group(function () {
     // ──────────────── FACTURES ────────────────
     Route::get('factures/stats', [FactureController::class, 'stats']);
     Route::post('factures/{facture}/payer', [FactureController::class, 'marquerPayee']);
+    // === 🆕 NOUVEAU : Routes pour les paiements d'une facture ===
+    Route::prefix('factures/{facture}/paiements')->group(function () {
+        Route::get('/', [\App\Http\Controllers\PaiementController::class, 'index']);           // Liste
+        Route::post('/', [\App\Http\Controllers\PaiementController::class, 'store']);          // Créer
+        Route::get('/{paiement}', [\App\Http\Controllers\PaiementController::class, 'show']);  // Détails
+        Route::put('/{paiement}', [\App\Http\Controllers\PaiementController::class, 'update']); // Modifier
+        Route::delete('/{paiement}', [\App\Http\Controllers\PaiementController::class, 'destroy']); // Supprimer
+    });
     Route::apiResource('factures', FactureController::class);
+     Route::get('factures/{facture}/telecharger-pdf', [FactureController::class, 'telechargerPDF']);
+
 
     // ──────────────── CLIENTS ────────────────
     Route::prefix('clients')->group(function () {
@@ -102,5 +112,9 @@ Route::middleware(['auth:sanctum', ActivityLogger::class])->group(function () {
     Route::post('mouvement', [MouvementController::class, 'store']);
     Route::apiResource('mouvement', MouvementController::class)->except(['store']);
 
+    // // ──────────────── PDF du facture  ────────────────
+    //   Route::get('/factures/{id}/telecharger-pdf', [FactureController::class, 'telechargerPDF']);
+
+
 });
-    Route::get('/factures/{id}/telecharger-pdf', [FactureController::class, 'telechargerPDF']);
+  

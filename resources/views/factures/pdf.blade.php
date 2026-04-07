@@ -399,13 +399,81 @@
             </table>
         </div>
 
-        <div class="totals-section">
-            <div class="total-row">
-                <span class="total-label">Sous-total</span>
-                <span class="total-value">{{ number_format($sousTotal, 2, ',', ' ') }} FCFA</span>
-            </div>
-        </div>
+        {{-- 📊 SECTION PAIEMENTS ET SOLDE --}}
+<div class="totals-section">
+    <div class="total-row">
+        <span class="total-label">Sous-total HT</span>
+        <span class="total-value">{{ number_format($facture->montant_ht, 2, ',', ' ') }} FCFA</span>
     </div>
+    @if($facture->tva > 0)
+    <div class="total-row">
+        <span class="total-label">TVA ({{ $facture->tva }}%)</span>
+        <span class="total-value">{{ number_format($facture->montant_ht * $facture->tva / 100, 2, ',', ' ') }} FCFA</span>
+    </div>
+    @endif
+    <div class="total-row">
+        <span class="total-label">Total TTC</span>
+        <span class="total-value">{{ number_format($facture->montant_ttc, 2, ',', ' ') }} FCFA</span>
+    </div>
+    
+    {{-- 💰 NOUVEAU : Historique des paiements --}}
+    @if($facture->paiements->isNotEmpty())
+    <div class="total-row" style="margin-top: 20px; padding-top: 15px; border-top: 2px dashed #ccc;">
+        <span class="total-label" style="color: #2c3e50;">Total payé</span>
+        <span class="total-value" style="color: #27ae60;">{{ number_format($facture->total_paye, 2, ',', ' ') }} FCFA</span>
+    </div>
+
+    
+   <div class="final-total" 
+        @if($facture->reste_a_payer > 0)
+            style="background: #e67e22;"
+        @else
+            style="background: #27ae60;"
+        @endif
+    >
+        <span class="total-label">Reste à payer</span>
+        <span class="total-value">{{ number_format($facture->reste_a_payer, 2, ',', ' ') }} FCFA</span>
+   </div>
+    
+    {{-- 📋 Tableau des paiements --}}
+    <div style="margin-top: 25px;">
+        <div class="section-title" style="font-size: 16px; margin-bottom: 10px;">Historique des paiements</div>
+        <table style="font-size: 11px;">
+            <thead>
+                <tr style="background: #ecf0f1;">
+                    <th style="padding: 8px; text-align: left;">Date</th>
+                    <th style="padding: 8px; text-align: left;">Mode</th>
+                    <th style="padding: 8px; text-align: right;">Montant</th>
+                    <th style="padding: 8px; text-align: left;">Réf.</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($facture->paiements as $paiement)
+                <tr>
+                    <td style="padding: 8px;">{{ $paiement->date_paiement }}</td>
+                    <td style="padding: 8px;">{{ $paiement->mode_paiement }}</td>
+                    <td style="padding: 8px; text-align: right; color: #27ae60; font-weight: bold;">
+                        {{ number_format($paiement->montant, 2, ',', ' ') }} FCFA
+                    </td>
+                    <td style="padding: 8px; font-size: 10px;">{{ $paiement->reference ?: '-' }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @else
+    {{-- Aucun paiement enregistré --}}
+    <div class="final-total" style="background: #e74c3c; margin-top: 10px;">
+        <span class="total-label">Reste à payer</span>
+        <span class="total-value">{{ number_format($facture->montant_ttc, 2, ',', ' ') }} FCFA</span>
+    </div>
+    <p style="margin-top: 15px; font-size: 12px; color: #7f8c8d; font-style: italic;">
+        ⚠️ Aucun paiement enregistré pour cette facture
+    </p>
+    @endif
+</div>
+    </div>
+
 
     <div class="footer">
         Merci pour votre confiance | TOUARA - Menuiserie Aluminium<br>
