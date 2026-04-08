@@ -26,8 +26,8 @@ class StoreDevisRequest extends FormRequest
             'lignes.*.produit' => 'required|string|max:255',
             'lignes.*.categorie' => 'nullable|string|max:100',
             'lignes.*.description' => 'nullable|string',
-            'lignes.*.largeur' => 'nullable|numeric|min:0',
-            'lignes.*.hauteur' => 'nullable|numeric|min:0',
+            'lignes.*.largeur' => 'required_with:lignes.*.hauteur|nullable|numeric|gt:0',
+            'lignes.*.hauteur' => 'required_with:lignes.*.largeur|nullable|numeric|gt:0',
             'lignes.*.quantite' => 'required|integer|min:1',
             'lignes.*.aluminium' => 'nullable|string|max:100',
             'lignes.*.vitrage' => 'nullable|string|max:100',
@@ -43,6 +43,10 @@ class StoreDevisRequest extends FormRequest
             'date_emission.required' => 'La date d\'émission est obligatoire.',
             'lignes.required' => 'Au moins un article est requis.',
             'lignes.*.produit.required' => 'Le produit est obligatoire.',
+            'lignes.*.largeur.required_with' => 'La largeur est requise si une hauteur est fournie.',
+            'lignes.*.hauteur.required_with' => 'La hauteur est requise si une largeur est fournie.',
+            'lignes.*.largeur.gt' => 'La largeur doit être supérieure à 0.',
+            'lignes.*.hauteur.gt' => 'La hauteur doit être supérieure à 0.',
             'lignes.*.quantite.required' => 'La quantité est obligatoire.',
         ];
     }

@@ -6,8 +6,10 @@ use App\Http\Requests\UpdateFactureRequest;
 use App\Http\Resources\FactureResource;
 use App\Models\Facture;
 use App\Models\Commande;
+use App\Models\ActivityLog;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\ClientService;
+use App\Services\DeviceDetector;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -141,15 +143,73 @@ class FactureController extends Controller
         return response()->json(['data' => $stats]);
     }
 
-   public function telechargerPDF($id)
+    public function telechargerPDF($id)
     {
         $facture = Facture::with(['client', 'articles', 'commande', 'paiements'])->findOrFail($id);
-        
-        // Les variables sont maintenant calculées automatiquement via les accessors
-        $pdf = Pdf::loadView('factures.pdf', compact('facture'));
+        $articleCount = $facture->articles->count();
+        $montantEnLettres = $this->montantEnLettres((float) $facture->montant_ttc);
+
+        if ($articleCount > 18) {
+            $densityClass = 'ultra-compact';
+        } elseif ($articleCount > 10) {
+            $densityClass = 'compact';
+        } else {
+            $densityClass = 'normal';
+        }
+
+        $this->logPdfDownloadActivity($facture);
+
+        $pdf = Pdf::loadView('factures.pdf', compact('facture', 'montantEnLettres', 'densityClass'));
         
         $numeroClean = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $facture->numero_facture);
         
         return $pdf->download('facture-' . $numeroClean . '.pdf');
+    }
+
+    private function montantEnLettres(float $montant): string
+    {
+        $formatter = new \NumberFormatter('fr_FR', \NumberFormatter::SPELLOUT);
+
+        $partieEntiere = (int) floor($montant);
+        $partieDecimale = (int) round(($montant - $partieEntiere) * 100);
+
+        $texte = ucfirst($formatter->format($partieEntiere)) . ' francs CFA';
+
+        if ($partieDecimale > 0) {
+            $texte .= ' et ' . $formatter->format($partieDecimale) . ' centimes';
+        }
+
+        return $texte;
+    }
+
+    private function logPdfDownloadActivity(Facture $facture): void
+    {
+        try {
+            $request = request();
+            $user = auth('sanctum')->user();
+            $detector = new DeviceDetector($request);
+
+            ActivityLog::create([
+                'user_id' => $user?->id,
+                'user_email' => $user?->email,
+                'action' => 'download',
+                'module' => 'factures',
+                'model_type' => Facture::class,
+                'model_id' => $facture->id,
+                'description' => "Téléchargement du PDF de la facture {$facture->numero_facture} (#{$facture->id})",
+                'changes' => [
+                    'facture_id' => $facture->id,
+                    'numero_facture' => $facture->numero_facture,
+                    'format' => 'pdf',
+                ],
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'device_type' => $detector->getDeviceType(),
+                'device_name' => $detector->getDeviceName(),
+                'session_id' => $request->bearerToken(),
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
     }
 }
