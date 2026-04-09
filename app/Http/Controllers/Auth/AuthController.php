@@ -37,6 +37,11 @@ class AuthController extends Controller
 
         /** @var User $user */
         $user = Auth::user();
+        $user->forceFill([
+            'last_login_ip' => $request->ip(),
+            'last_login_at' => now(),
+        ])->save();
+
         $token = $user->createToken('auth-token')->plainTextToken;
 
         ActivityLog::create([
@@ -54,6 +59,8 @@ class AuthController extends Controller
             'user' => $user,
             'access_token' => $token,
             'token_type' => 'Bearer',
+            'post_login_redirect' => '/devis',
+            'allow_install_prompt' => true,
         ]);
     }
 
