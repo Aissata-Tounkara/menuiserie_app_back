@@ -22,6 +22,12 @@ class UserSeeder extends Seeder
                 'password' => 'Employee12345',
                 'role' => 'employee',
             ],
+            [
+                'name' => 'Aicha Menuiserie',
+                'email' => 'aicha@menuiserie.test',
+                'password' => 'Aicha12345',
+                'role' => 'employee',
+            ],
         ];
 
         foreach ($users as $userData) {
