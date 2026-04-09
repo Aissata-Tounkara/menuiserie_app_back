@@ -62,7 +62,8 @@ class DevisController extends Controller
                 $prixCalcule = PricingService::calculerPrixUnitaire(
                     $ligneData['produit'],
                     $ligneData['largeur'] ?? null,
-                    $ligneData['hauteur'] ?? null
+                    $ligneData['hauteur'] ?? null,
+                     $ligneData['categorie'] ?? null
                 );
 
                 $devis->lignes()->create([

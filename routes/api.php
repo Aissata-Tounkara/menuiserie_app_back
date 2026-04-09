@@ -64,7 +64,7 @@ Route::middleware(['auth:sanctum', ActivityLogger::class])->group(function () {
     // ──────────────── DEVIS ────────────────
     Route::post('devis/{devis}/valider', [DevisController::class, 'validerEtFacturer']);
     Route::apiResource('devis', DevisController::class);
-
+    // routes/api.php
     // ──────────────── COMMANDES ────────────────
     Route::get('commandes/stats', [CommandeController::class, 'stats']);
     Route::post('commandes/{commande}/statut', [CommandeController::class, 'updateStatut']);

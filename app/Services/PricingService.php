@@ -7,10 +7,10 @@ class PricingService
     /**
      * Prix generique au cm2 pour les produits hors categories connues.
      */
-    public const PRIX_ALU_CM2 = 5.00;
+    public const PRIX_ALU_CM2 = 9.00;
 
     /**
-     * Taux de majoration pour les formats personnalisés (15%)
+     
      */
     public const TAUX_MAJORATION = 0;
 
@@ -22,7 +22,7 @@ class PricingService
     /**
      * Estimation affinee pour les fenetres: cout fixe + cout variable par cm2.
      */
-    public const FENETRE_PRIX_CM2 = 7.38;
+    public const FENETRE_PRIX_CM2 = 8.38;
 
     /**
      * Liste des formats standards avec leurs dimensions exactes et prix fixes.
@@ -78,7 +78,7 @@ class PricingService
 
         $surfaceCm2 = self::convertirSurfaceEnCm2($largeur, $hauteur);
         $prixBase = self::calculerPrixPersonnaliseBase($produit, $surfaceCm2);
-        $prixFinal = $prixBase * (1 + (self::TAUX_MAJORATION / 100));
+        $prixFinal = $prixBase * (1+ (self::TAUX_MAJORATION / 100));
 
         // Arrondir à l'entier le plus proche (pas de centimes)
         return round($prixFinal);
