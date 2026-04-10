@@ -7,7 +7,7 @@ class PricingService
     /**
      * Prix generique au cm2 pour les produits hors categories connues.
      */
-    public const PRIX_ALU_CM2 = 9.00;
+    public const PRIX_ALU_CM2 = 8.00;
 
     /**
      
@@ -22,7 +22,7 @@ class PricingService
     /**
      * Estimation affinee pour les fenetres: cout fixe + cout variable par cm2.
      */
-    public const FENETRE_PRIX_CM2 = 8.38;
+    public const FENETRE_PRIX_CM2 = 7.38;
 
     /**
      * Liste des formats standards avec leurs dimensions exactes et prix fixes.
